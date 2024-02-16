@@ -4,6 +4,7 @@
 #include "FS.h"
 #include "BluetoothSerial.h"
 #include "RTClib.h"
+#include <SPI.h>
 
 #define OBD2_REQUEST_ID 0x7DF
 #define OBD2_RESPONSE_ID 0x7E8
@@ -27,7 +28,20 @@ twai_message_t message3;
 twai_message_t message4;
 twai_message_t message5;
 
+//dibawah ini buat inverter, taro di inverter state
+twai_message_t message_inverter_speed_rpm;
+twai_message_t message_inverter_voltage_current;
+
+const char* dcdc_state_now_cstr;
+const char* pdu_state_now_cstr;
+const char* inverter_state_now_cstr;
+const char* engine_rpm_now_cstr;
+const char* engine_speed_now_cstr;
+const char* inverter_voltage_now_cstr;
+const char* inverter_current_now_cstr;
+
 String waktu;
+String epoch_now;
 
 String take_time(){
     DateTime now = rtc.now();
@@ -45,6 +59,17 @@ String take_time(){
     String pembatas3 = "T";
     String date_time = date + pembatas3 + waktu; 
     return date_time;
+}
+
+String get_epoch_now(){
+    DateTime now = rtc.now();
+    int hari = now.day();
+    int bulan = now.month();
+    int tahun = now.year();
+    DateTime startOfDay = DateTime(tahun, bulan, hari, 0, 0, 0);
+    String epoch = String(startOfDay.unixtime());
+    return epoch;
+    printf("\nTime in epoch at start of day: %s", epoch);    
 }
 
 void writeFile(fs::FS &fs, const char * path, const char * message) {
@@ -116,46 +141,115 @@ void transmit_message(twai_message_t *message)
 
 void read_inverter_status(void *arg){
   while(1){
-  long int currentMillis = millis();
-  if(currentMillis - prevMillis >= 2000){
-  if(twai_receive(&message, pdMS_TO_TICKS(1000)) == ESP_OK){
-    if(message.identifier == 0x0CF00402){
-        printf("\nID Inverter: %x", message.identifier);        
-        File file = SD.open("/inverter_status.txt", FILE_APPEND);
-        if (!file) {
-          Serial.println("File not exist yet");
-        }
-        else{
-          Serial.println("File inverter status already exist");
-        }
-        uint8_t status = message.data[0];
-        // uint8_t mock_value[8] = {02, 43, status, 00, 00, 00, 00, 00};
-        // for(int i = 0; i < message.data_length_code; i++){
-        //   printf("%x\t", mock_value[i]);
-        //   //  // Append data to the file
-        //   if (file.println(String(mock_value[i]))) {
-        //     Serial.println("Message inverter appended");
-        //   } else {
-        //     Serial.println("Append failed");
+    long int currentMillis = millis();
+    if(currentMillis - prevMillis >= 5000){
+      if(twai_receive(&message_inverter_speed_rpm, pdMS_TO_TICKS(1000)) == ESP_OK){
+        // if(message.identifier == 0x0CF00402){
+        //     printf("\nID Inverter: %x", message.identifier);        
+        //     File file = SD.open("/inverter_status.txt", FILE_APPEND);
+        //     if (!file) {
+        //       Serial.println("File not exist yet");
+        //     }
+        //     else{
+        //       Serial.println("File inverter status already exist");
+        //     }
+        //     uint8_t status = message.data[0];
+        //     if(status == 1){
+        //       file.println("Over Current");
+        //     }
+        //     else if(status == 2){
+        //       file.println("Over Voltage");
+        //     }
+        //     printf("\n");
         //   }
-        // }
-        // if (file.print("\n")) {
-        //     Serial.println("Enter appended");
-        // } else {
-        //     Serial.println("Append failed");
-        // }
-        if(status == 1){
-          file.println("Over Current");
+            if(message_inverter_speed_rpm.identifier == 0x0CF00401){
+              printf("\nID Inverter: %x", message_inverter_speed_rpm.identifier);        
+              File file = SD.open(engine_speed_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File engine speed already exist");
+              }
+              uint8_t speed_msb = message_inverter_speed_rpm.data[2];
+              uint8_t speed_lsb = message_inverter_speed_rpm.data[1];
+              uint16_t engine_speed = (speed_msb << 8) | speed_lsb;
+              int real_speed = engine_speed * 0.125;
+              String speedy = waktu + "\t" + real_speed;
+              file.println(speedy);
+              file.close();
+
+              file = SD.open(engine_rpm_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File engine rpm already exist");
+              }
+              uint8_t rpm_msb = message_inverter_speed_rpm.data[4];
+              uint8_t rpm_lsb = message_inverter_speed_rpm.data[3];
+              uint16_t engine_rpm = (rpm_msb << 8) | rpm_lsb;
+              int real_rpm = engine_rpm * 0.125;
+              String rpms = waktu + "\t" + real_rpm;
+              file.println(rpms);
+              file.close();
+          }
         }
-        else if(status == 2){
-          file.println("Over Voltage");
+      if(twai_receive(&message_inverter_voltage_current, pdMS_TO_TICKS(1000)) == ESP_OK){
+        // if(message.identifier == 0x0CF00402){
+        //     printf("\nID Inverter: %x", message.identifier);        
+        //     File file = SD.open("/inverter_status.txt", FILE_APPEND);
+        //     if (!file) {
+        //       Serial.println("File not exist yet");
+        //     }
+        //     else{
+        //       Serial.println("File inverter status already exist");
+        //     }
+        //     uint8_t status = message.data[0];
+        //     if(status == 1){
+        //       file.println("Over Current");
+        //     }
+        //     else if(status == 2){
+        //       file.println("Over Voltage");
+        //     }
+        //     printf("\n");
+        //   }
+            if(message_inverter_voltage_current.identifier == 0x0CF00402){
+              printf("\nID Inverter: %x", message_inverter_voltage_current.identifier);        
+              File file = SD.open(inverter_voltage_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File inverter voltage already exist");
+              }
+              uint8_t voltage_msb = message_inverter_voltage_current.data[1];
+              uint8_t voltage_lsb = message_inverter_voltage_current.data[0];
+              uint16_t inverter_voltage = (voltage_msb << 8) | voltage_lsb;
+              // int real_speed = engine_speed * 0.125;
+              String tegangan = waktu + "\t" + inverter_voltage;
+              file.println(tegangan);
+              file.close();
+
+              file = SD.open(inverter_current_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File inverter current already exist");
+              }
+              uint8_t current_msb = message_inverter_voltage_current.data[3];
+              uint8_t current_lsb = message_inverter_voltage_current.data[2];
+              uint16_t inverter_current = (current_msb << 8) | current_lsb;
+              // int real_rpm = engine_rpm * 0.125;
+              String arus = waktu + "\t" + inverter_current;
+              file.println(arus);
+              file.close();
+          }
         }
-        printf("\n");
-      }
+      prevMillis = currentMillis;
+      printf("\nWaktu kemakan buat inverter: %d", currentMillis);
     }
-    prevMillis = currentMillis;
-    printf("\nWaktu kemakan buat inverter: %d", currentMillis);
-  }
   }
 }
 
@@ -167,7 +261,7 @@ void read_pdu_state1(void *arg){
     switch(message2.identifier){
       case 0x10F51402:
         printf("\nID PDU1: %x", message.identifier);
-        File file = SD.open("/pdu_status.txt", FILE_APPEND);
+        File file = SD.open(pdu_state_now_cstr, FILE_APPEND);
         if (!file) {
           Serial.println("File does not exist yet");
         }
@@ -317,187 +411,6 @@ void read_dcdc_state(void *arg){
   }
 }
 
-void read_status(void *arg){
-  if(twai_receive(&message, pdMS_TO_TICKS(1000)) == ESP_OK){
-    switch(message.identifier){
-      case 0x0CF00402:
-      {
-        File file = SD.open("/inverter_status.txt", FILE_APPEND);
-        if (!file) {
-          Serial.println("File not exist yet");
-        }
-        else{
-          Serial.println("File inverter status already exist");
-        }
-        uint8_t status = message.data[0];
-        uint8_t mock_value[8] = {02, 43, status, 00, 00, 00, 00, 00};
-        for(int i = 0; i < message.data_length_code; i++){
-          printf("%x\t", mock_value[i]);
-          //  // Append data to the file
-          if (file.print(String(mock_value[i]))) {
-            Serial.println("Message appended");
-          } else {
-            Serial.println("Append failed");
-          }
-        }
-        if (file.print("\n")) {
-            Serial.println("Enter appended");
-        } else {
-            Serial.println("Append failed");
-        }
-        printf("\n");
-        break;
-      }
-
-      case 0x10F51402:
-      {
-        File file = SD.open("/bms_status.txt", FILE_APPEND);
-        if (!file) {
-          Serial.println("File does not exist yet");
-        }
-        else{
-          Serial.println("File bms status already exist");
-        }
-        // uint8_t status_bms_msb = message->data[1];
-        // uint8_t status_bms_lsb = message->data[0];
-        for(int i = 0; i < message.data_length_code; i++){
-          printf("%x\t", message.data[i]);
-          //  // Append data to the file
-           if (file.print(String(message.data[i]))) {
-              Serial.println("Message appended");
-           } else {
-              Serial.println("Append failed");
-           }
-        }
-        if (file.print("\n")) {
-              Serial.println("Enter appended");
-        } else {
-              Serial.println("Append failed");
-        }
-        printf("\n");
-        break;
-      }
-
-      case 0x18FE8D01:
-      {
-        File file = SD.open("/pdu_state", FILE_APPEND);
-        if(!file){
-          Serial.println("File does not exist yet");
-        }
-        else{
-          Serial.println("File pdu state already exist");
-        }
-        uint8_t hv_state = message.data[0];
-        uint8_t precharge_state = message.data[1];
-        uint8_t ecu_state = message.data[2];
-        uint8_t mock_value[8] = {04, 43, hv_state, precharge_state, ecu_state, 00, 00, 00};
-        for(int i = 0; i < message.data_length_code; i++){
-          printf("%x\t", mock_value[i]);
-          //  // Append data to the file
-           if (file.print(String(mock_value[i]))) {
-              Serial.println("Message appended");
-           } else {
-              Serial.println("Append failed");
-           }
-        }
-        if (file.print("\n")) {
-              Serial.println("Enter appended");
-        } else {
-              Serial.println("Append failed");
-        }
-        printf("\n");
-        break;
-      }
-
-      case 0x18FE8D02:
-      {
-        File file = SD.open("/pdu_state", FILE_APPEND);
-        if(!file){
-          Serial.println("File does not exist yet");
-        }
-        else{
-          Serial.println("File pdu state already exist");
-        }
-        uint8_t dcdc_state = message.data[0];
-        uint8_t mock_value[8] = {01, 43, dcdc_state, 00, 00, 00, 00, 00};
-        for(int i = 0; i < message.data_length_code; i++){
-          printf("%x\t", mock_value[i]);
-          //  // Append data to the file
-           if (file.print(String(mock_value[i]))) {
-              Serial.println("Message appended");
-           } else {
-              Serial.println("Append failed");
-           }
-        }
-        if (file.print("\n")) {
-              Serial.println("Enter appended");
-        } else {
-              Serial.println("Append failed");
-        }
-        printf("\n");
-        break;
-      }
-      case 0x18FE8D03:
-      {
-        File file = SD.open("/pdu_state", FILE_APPEND);
-        if(!file){
-          Serial.println("File does not exist");
-        }
-        else{
-          Serial.println("File pdu state already exist");
-        }
-        uint8_t lv_state = message.data[0];
-        uint8_t mock_value[8] = {01, 43, 00, lv_state, 00, 00, 00, 00};
-        for(int i = 0; i < message.data_length_code; i++){
-          printf("%x\t", mock_value[i]);
-          //  // Append data to the file
-           if (file.print(String(mock_value[i]))) {
-              Serial.println("Message appended");
-           } else {
-              Serial.println("Append failed");
-           }
-        }
-        if (file.print("\n")) {
-              Serial.println("Enter appended");
-        } else {
-              Serial.println("Append failed");
-        }
-        printf("\n"); 
-        break;
-      }
-      case 0x18F11401:
-      {
-        File file = SD.open("/dcdc_state", FILE_APPEND);
-        if(!file){
-          Serial.println("File does not exist yet");
-        }
-        else{
-          Serial.println("File dcdc state already exist");          
-        }
-        for(int i = 0; i < message.data_length_code; i++){
-          printf("%x\t", message.data[i]);
-          //  // Append data to the file
-           if (file.print(String(message.data[i]))) {
-              Serial.println("Message appended");
-           } else {
-              Serial.println("Append failed");
-           }
-        }
-        if (file.print("\n")) {
-              Serial.println("Enter appended");
-        } else {
-              Serial.println("Append failed");
-        }
-        printf("\n");  
-        break;
-      }                  
-    }    
-  }
-  else{
-    Serial.printf("\nGagal menerima data");
-  }  
-}
-
 void receive_message(void *arg)
 {
   while(1){
@@ -509,40 +422,6 @@ void receive_message(void *arg)
        if (!file) {
         Serial.println("Failed to open file for appending");
       }
-        // switch(message.identifier) {
-        //     case 0x18FEF100:
-        //         printf("\nVehicle Speed Physical Value: %d\n", message.data[2]);
-        //         break;
-        //     case 0xCF00400:
-        //         if (message.data_length_code >= 6) {
-        //             // Extract MSB and LSB
-        //             uint8_t msb = message.data[4];
-        //             uint8_t lsb = message.data[3];
-
-        //             // Combine MSB and LSB to form a 16-bit value
-        //             uint16_t rpmValue = (msb << 8) | lsb;
-
-        //             // Calculate the real RPM value
-        //             float realRPM = rpmValue * 0.125;
-        //             printf("Vehicle Engine RPM Physical Value: %.0f RPM\n", realRPM);
-        //             printf("\nVehicle RPM in Hex:%x \t %x", msb, lsb);
-        //         }
-        //         break;
-        // }
-        // for(int i = 0;i < String(message.identifier).length();i++){
-        //   if(file.print(String(message.identifier)[i])){
-        //     Serial.println("ID Appended");
-        //   }    
-        //   else{
-        //     Serial.println("Gagal append");
-        //   }      
-        // }
-        // if(file.print("\t")){
-        //   Serial.println("Tab Appended");
-        // }
-        // else{
-        //   Serial.println("Gagal append");
-        // }
         printf("\nID Sekarang: %x: ", message.identifier);        
         for(int i = 0; i < message.data_length_code; i++){
           printf("%x\t", message.data[i]);
@@ -620,23 +499,29 @@ void setup(){
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
 
-  File file = SD.open("/test_log.txt");
-  if(!file) {
-    Serial.println("File doens't exist");
-    Serial.println("Creating file...");
-    writeFile(SD, "/test_log.txt", "test\r\n");
-  }
-  else {
-    Serial.println("File already exists");  
-  }
-  
-  file.close();
+  epoch_now = get_epoch_now();
 
-  file  = SD.open("/dcdc_state.txt");
+  String dcdc_state_now = "/" + epoch_now + "_dcdcState.txt";
+  String pdu_state_now = "/" + epoch_now + "_pduState.txt";
+  String inverter_state_now = "/" + epoch_now + "_inverterState.txt";
+  String engine_speed_now = "/" + epoch_now + "_engineSpeed.txt";
+  String engine_rpm_now = "/" + epoch_now + "_engineRPM.txt";
+  String inverter_current_now = "/" + epoch_now + "_inverterCurrent.txt";
+  String inverter_voltage_now = "/" + epoch_now + "_inverterVoltage.txt";
+
+  dcdc_state_now_cstr = dcdc_state_now.c_str();
+  pdu_state_now_cstr = pdu_state_now.c_str();
+  inverter_state_now_cstr = inverter_state_now.c_str();
+  inverter_current_now_cstr = inverter_current_now.c_str();
+  inverter_voltage_now_cstr = inverter_voltage_now.c_str();
+  engine_speed_now_cstr = engine_speed_now.c_str();
+  engine_rpm_now_cstr = engine_rpm_now.c_str();
+
+  File file  = SD.open(dcdc_state_now_cstr, FILE_APPEND);
   if(!file) {
-    Serial.println("File doens't exist");
+    Serial.println("File dcdc state for today doens't exist");
     Serial.println("Creating file...");
-    writeFile(SD, "/dcdc_state.txt", "test\r\n");
+    writeFile(SD, dcdc_state_now_cstr, "test\r\n");
   }
   else {
     Serial.println("File dcdc state already exists");  
@@ -644,35 +529,76 @@ void setup(){
   
   file.close();
 
-  file = SD.open("/pdu_state.txt", FILE_APPEND);
+  file = SD.open(pdu_state_now_cstr, FILE_APPEND);
   if(!file){
-    Serial.println("File does not exist yet");
-    writeFile(SD, "/pdu_state.txt", "test\r\n");
+    Serial.println("File pdu state for today does not exist yet");
+    writeFile(SD, pdu_state_now_cstr, "test\r\n");
   }
   else{
     Serial.println("File pdu state already exist");
   }
   file.close();
 
-  file = SD.open("/bms_status.txt", FILE_APPEND);
+  // file = SD.open("/bms_status.txt", FILE_APPEND);
+  // if(!file){
+  //   Serial.println("File does not exist yet");
+  //   writeFile(SD, "/bms_status.txt", "test\r\n");
+  // }
+  // else{
+  //   Serial.println("File bms state already exist");
+  // }
+  // file.close();
+
+  file = SD.open(inverter_current_now_cstr, FILE_APPEND);
   if(!file){
-    Serial.println("File does not exist yet");
-    writeFile(SD, "/bms_status.txt", "test\r\n");
+    Serial.println("File inverter current for today does not exist yet");
+    writeFile(SD, inverter_current_now_cstr, "test\r\n");
   }
   else{
-    Serial.println("File bms state already exist");
+    Serial.println("File inverter current already exist");
   }
   file.close();
 
-  file = SD.open("/inverter_state.txt", FILE_APPEND);
+  file = SD.open(inverter_state_now_cstr, FILE_APPEND);
   if(!file){
-    Serial.println("File does not exist yet");
-    writeFile(SD, "/inverter_state.txt", "test\r\n");
+    Serial.println("File inverter state for today does not exist yet");
+    writeFile(SD, inverter_state_now_cstr, "test\r\n");
   }
   else{
     Serial.println("File inverter state already exist");
   }
   file.close();
+
+  file = SD.open(inverter_voltage_now_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File inverter voltage for today does not exist yet");
+    writeFile(SD, inverter_voltage_now_cstr, "test\r\n");
+  }
+  else{
+    Serial.println("File inverter voltage already exist");
+  }
+  file.close();
+
+  file = SD.open(engine_speed_now_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File engine_speed for today does not exist yet");
+    writeFile(SD, engine_speed_now_cstr, "test\r\n");
+  }
+  else{
+    Serial.println("File engine speed already exist");
+  }
+  file.close();
+
+  file = SD.open(engine_rpm_now_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File engine rpm for today does not exist yet");
+    writeFile(SD, engine_rpm_now_cstr, "test\r\n");
+  }
+  else{
+    Serial.println("File engine rpm already exist");
+  }
+  file.close();
+
   // xTaskCreate(receive_message, "receiveMessage", 3000, NULL, 2, &receiveMessageHandle);
   xTaskCreate(read_inverter_status, "inverterStatus", 3000, NULL, 3, &inverterStatusHandle);
   xTaskCreate(read_pdu_state1, "pduState1", 3000, NULL, 2, &pdu123Handle);
@@ -686,74 +612,5 @@ void setup(){
 
 void loop()
 {
-    // twai_message_t message;
-    // twai_message_t message1;
-    // // Set the data to send
-    // uint8_t data[8] = {rand() % 255, rand() % 255, rand() % 255, 
-    // rand() % 255, rand() % 255, rand() % 255, rand() % 255, rand() % 255};
-
-    // int current = 0;
-
-    // while(current <= 2000){ 
-    //   current += 1;
-    // // Create a new message
-    // //new_message(&message, 0x123, 8, data);
-
-    // // Transmit the message to a queue
-    // //transmit_message(&message);
-
-    // // Receive the message from the queue
-    // // receive_message(&message1);
-
-    // // // Wait for 1 second
-    // // vTaskDelay(100 / portTICK_PERIOD_MS);
-    // }
-    // if(millis() - prevMillis >= 2000){
-    //   prevMillis = millis();
-    //   // read_status(&message);
-    //   read_inverter_status(&message);
-    //   read_pdu_state1(&message);
-    //   read_pdu_state2(&message);
-    //   read_pdu_state3(&message);
-    //   read_dcdc_state(&message);
-    //   printf("\n Waktu: %d", millis());
-    //   // receive_message(&message);
-    //   current = 0;
-    // }
-
-    // if(millis() - prevMillis >= 200){
-    //   prevMillis = millis();
-    //   read_inverter_status(&message);
-    //   printf("\n Waktu1: %d", millis());
-    //   current = 0;
-    // }
-
-    // if(millis() - prevMillis >= 400){
-    //   prevMillis = millis();
-    //   read_pdu_state1(&message);
-    //   printf("\n Waktu2: %d", millis());
-    //   current = 0;
-    // }
-
-    // if(millis() - prevMillis >= 600){
-    //   prevMillis = millis();
-    //   read_pdu_state2(&message);
-    //   printf("\n Waktu3: %d", millis());
-    //   current = 0;
-    // }
-
-    // if(millis() - prevMillis >= 800){
-    //   prevMillis = millis();
-    //   read_pdu_state3(&message);
-    //   printf("\n Waktu4: %d", millis());
-    //   current = 0;
-    // }
-
-    // if(millis() - prevMillis >= 1000){
-    //   prevMillis = millis();
-    //   read_dcdc_state(&message);
-    //   printf("\n Waktu5: %d", millis());
-    //   current = 0;
-    // }
 
 }
