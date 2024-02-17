@@ -6,10 +6,6 @@
 #include "RTClib.h"
 #include <SPI.h>
 
-#define OBD2_REQUEST_ID 0x7DF
-#define OBD2_RESPONSE_ID 0x7E8
-#define OBD2_REQUEST_EXTENDED_ID 0x18DB33F1
-
 #define RX_PIN 25 //tar ganti ke mana (jangan 4 dan 5) buat akomodasi rtc ama clk
 #define TX_PIN 33 // tar ganti ke mana (jangan 4 dan 5) buat akomodasi rtc ama miso
 
@@ -29,16 +25,21 @@ twai_message_t message4;
 twai_message_t message5;
 
 //dibawah ini buat inverter, taro di inverter state
-twai_message_t message_inverter_speed_rpm;
+twai_message_t message_inverter_speed_rpm_temp;
 twai_message_t message_inverter_voltage_current;
+twai_message_t message_dcdc;
 
 const char* dcdc_state_now_cstr;
 const char* pdu_state_now_cstr;
 const char* inverter_state_now_cstr;
 const char* engine_rpm_now_cstr;
 const char* engine_speed_now_cstr;
+const char* engine_temp_now_cstr;
 const char* inverter_voltage_now_cstr;
 const char* inverter_current_now_cstr;
+const char* dcdc_current_now_cstr;
+const char* dcdc_hv_input_now_cstr;
+const char* dcdc_lv_output_now_cstr;
 
 String waktu;
 String epoch_now;
@@ -143,7 +144,7 @@ void read_inverter_status(void *arg){
   while(1){
     long int currentMillis = millis();
     if(currentMillis - prevMillis >= 5000){
-      if(twai_receive(&message_inverter_speed_rpm, pdMS_TO_TICKS(1000)) == ESP_OK){
+      if(twai_receive(&message_inverter_speed_rpm_temp, pdMS_TO_TICKS(1000)) == ESP_OK){
         // if(message.identifier == 0x0CF00402){
         //     printf("\nID Inverter: %x", message.identifier);        
         //     File file = SD.open("/inverter_status.txt", FILE_APPEND);
@@ -162,8 +163,8 @@ void read_inverter_status(void *arg){
         //     }
         //     printf("\n");
         //   }
-            if(message_inverter_speed_rpm.identifier == 0x0CF00401){
-              printf("\nID Inverter: %x", message_inverter_speed_rpm.identifier);        
+            if(message_inverter_speed_rpm_temp.identifier == 0x0CF00401){
+              printf("\nID Inverter: %x", message_inverter_speed_rpm_temp.identifier);        
               File file = SD.open(engine_speed_now_cstr, FILE_APPEND);
               if (!file) {
                 Serial.println("File not exist yet");
@@ -171,11 +172,11 @@ void read_inverter_status(void *arg){
               else{
                 Serial.println("File engine speed already exist");
               }
-              uint8_t speed_msb = message_inverter_speed_rpm.data[2];
-              uint8_t speed_lsb = message_inverter_speed_rpm.data[1];
+              uint8_t speed_msb = message_inverter_speed_rpm_temp.data[2];
+              uint8_t speed_lsb = message_inverter_speed_rpm_temp.data[1];
               uint16_t engine_speed = (speed_msb << 8) | speed_lsb;
               int real_speed = engine_speed * 0.125;
-              String speedy = waktu + "\t" + real_speed;
+              String speedy = waktu + "\t" + String(real_speed);
               file.println(speedy);
               file.close();
 
@@ -186,12 +187,27 @@ void read_inverter_status(void *arg){
               else{
                 Serial.println("File engine rpm already exist");
               }
-              uint8_t rpm_msb = message_inverter_speed_rpm.data[4];
-              uint8_t rpm_lsb = message_inverter_speed_rpm.data[3];
+              uint8_t rpm_msb = message_inverter_speed_rpm_temp.data[4];
+              uint8_t rpm_lsb = message_inverter_speed_rpm_temp.data[3];
               uint16_t engine_rpm = (rpm_msb << 8) | rpm_lsb;
               int real_rpm = engine_rpm * 0.125;
-              String rpms = waktu + "\t" + real_rpm;
+              String rpms = waktu + "\t" + String(real_rpm);
               file.println(rpms);
+              file.close();
+
+              file = SD.open(engine_temp_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File engine temp already exist");
+              }
+              uint8_t temp_msb = message_inverter_speed_rpm_temp.data[6];
+              uint8_t temp_lsb = message_inverter_speed_rpm_temp.data[5];
+              uint16_t engine_temp = (temp_msb << 8) | temp_lsb;
+              // int real_rpm = engine_rpm * 0.125;
+              String temps = waktu + "\t" + String(engine_temp);
+              file.println(temps);
               file.close();
           }
         }
@@ -377,36 +393,43 @@ void read_dcdc_state(void *arg){
   while(1){
   long int currentMillis = millis();
   if(currentMillis - prevMillis >= 2000){
-  if(twai_receive(&message5, pdMS_TO_TICKS(1000)) == ESP_OK){
-    switch(message5.identifier){
-      case 0x18F11401:
-        printf("\nID DCDC: %x", message5.identifier);
-        File file = SD.open("/dcdc_state.txt", FILE_APPEND);
-        if(!file){
-          Serial.println("File does not exist yet");
+    if(twai_receive(&message_dcdc, pdMS_TO_TICKS(1000)) == ESP_OK){
+      switch(message_dcdc.identifier){
+        case 0x18F11401:
+          printf("\nID DCDC: %x", message_dcdc.identifier);
+          File file = SD.open(dcdc_current_now_cstr, FILE_APPEND);
+          if(!file){
+            Serial.println("File dcdc current now does not exist yet");
+          }
+          else{
+            Serial.println("File dcdc current already exist");          
+          }
+          uint8_t current_msb = message_dcdc.data[3];
+          uint8_t current_lsb = message_dcdc.data[2];
+          uint16_t current = (current_msb << 8) | current_lsb;
+          String arus = waktu + "\t" + String(current);
+          file.println(arus);
+          file.close();
+
+          file = SD.open(dcdc_hv_input_now_cstr, FILE_APPEND);
+          uint8_t hv_msb = message_dcdc.data[5];
+          uint8_t hv_lsb = message_dcdc.data[4];
+          uint16_t hv = (hv_msb << 8) | hv_lsb;
+          String high_voltage = waktu + "\t" + String(hv);
+          file.println(high_voltage);
+          file.close();
+
+          file = SD.open(dcdc_lv_output_now_cstr, FILE_APPEND);
+          uint8_t lv_msb = message_dcdc.data[7];
+          uint8_t lv_lsb = message_dcdc.data[6];
+          uint16_t lv = (lv_msb << 8) | lv_lsb;
+          String low_voltage = waktu + "\t" + String(lv);
+          file.println(low_voltage);
+          file.close();                              
+          }
         }
-        else{
-          Serial.println("File dcdc state already exist");          
-        }
-        for(int i = 0; i < message5.data_length_code; i++){
-          printf("%x\t", message5.data[i]);
-          //  // Append data to the file
-           if (file.print(String(message.data[i]))) {
-              Serial.println("Message dcdc appended");
-           } else {
-              Serial.println("Append failed");
-           }
-        }
-        if (file.print("\n")) {
-              Serial.println("Enter appended");
-        } else {
-              Serial.println("Append failed");
-        }
-        printf("\n");  
-        }
-      }
-    prevMillis = currentMillis;
-    printf("\nWaktu abis buat dcdc: %d", currentMillis);
+      prevMillis = currentMillis;
+      printf("\nWaktu abis buat dcdc: %d", currentMillis);
     }
   }
 }
@@ -508,6 +531,10 @@ void setup(){
   String engine_rpm_now = "/" + epoch_now + "_engineRPM.txt";
   String inverter_current_now = "/" + epoch_now + "_inverterCurrent.txt";
   String inverter_voltage_now = "/" + epoch_now + "_inverterVoltage.txt";
+  String engine_temp_now = "/" + epoch_now + "_engineTemp.txt";
+  String dcdc_current_now = "/" + epoch_now + "_dcdcCurrent.txt";
+  String dcdc_hv_input_now = "/" + epoch_now + "_dcdcHVinput.txt";
+  String dcdc_lv_output_now = "/" + epoch_now + "_dcdcLVoutput.txt";
 
   dcdc_state_now_cstr = dcdc_state_now.c_str();
   pdu_state_now_cstr = pdu_state_now.c_str();
@@ -516,6 +543,10 @@ void setup(){
   inverter_voltage_now_cstr = inverter_voltage_now.c_str();
   engine_speed_now_cstr = engine_speed_now.c_str();
   engine_rpm_now_cstr = engine_rpm_now.c_str();
+  engine_temp_now_cstr = engine_temp_now.c_str();
+  dcdc_current_now_cstr = dcdc_current_now.c_str();
+  dcdc_hv_input_now = dcdc_hv_input_now.c_str();
+  dcdc_lv_output_now = dcdc_lv_output_now.c_str();
 
   File file  = SD.open(dcdc_state_now_cstr, FILE_APPEND);
   if(!file) {
@@ -596,6 +627,46 @@ void setup(){
   }
   else{
     Serial.println("File engine rpm already exist");
+  }
+  file.close();
+
+  file = SD.open(engine_temp_now_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File engine temp for today does not exist yet");
+    writeFile(SD, engine_temp_now_cstr, "test\r\n");
+  }
+  else{
+    Serial.println("File engine temp already exist");
+  }
+  file.close();
+
+  file = SD.open(dcdc_current_now_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File dcdc current for today does not exist yet");
+    writeFile(SD, dcdc_current_now_cstr, "test\r\n");
+  }
+  else{
+    Serial.println("File dcdc current already exist");
+  }
+  file.close();
+
+  file = SD.open(dcdc_hv_input_now_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File dcdc hv input for today does not exist yet");
+    writeFile(SD, dcdc_hv_input_now_cstr, "test\r\n");
+  }
+  else{
+    Serial.println("File dcdc hv input already exist");
+  }
+  file.close();
+
+  file = SD.open(dcdc_lv_output_now_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File dcdc lv output for today does not exist yet");
+    writeFile(SD, dcdc_lv_output_now_cstr, "test\r\n");
+  }
+  else{
+    Serial.println("File dcdc lv output already exist");
   }
   file.close();
 
