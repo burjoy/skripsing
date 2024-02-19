@@ -18,12 +18,6 @@ TaskHandle_t inverterStatusHandle = NULL;
 TaskHandle_t pdu123Handle = NULL;
 TaskHandle_t dcdcStateHandle = NULL;
 
-twai_message_t message;
-twai_message_t message2;
-twai_message_t message3;
-twai_message_t message4;
-twai_message_t message5;
-
 //dibawah ini buat inverter, taro di inverter state
 twai_message_t message_inverter_speed_rpm_temp;
 twai_message_t message_inverter_voltage_current;
@@ -34,14 +28,16 @@ twai_message_t message_dcdc;
 twai_message_t message_bms_hv_lv;
 twai_message_t message_bms_hv_lv_state;
 twai_message_t message_bms_cell1to4;
-twai_message_t message_bms_cell5to6; 
+twai_message_t message_bms_cell5to6;
+twai_message_t message_batt_charger;
+twai_message_t message_batt_temp; 
 
 const char* dcdc_bms_state_now_cstr;
 const char* inverter_pdu_state_now_cstr;
+const char* batt_temp_charger_now_cstr;
 
 String waktu;
 String epoch_now;
-
 String take_time(){
     DateTime now = rtc.now();
     int hari = now.day();
@@ -280,7 +276,7 @@ void read_dcdc_bms_status(void *arg){
     long int currentMillis = millis();
     if(currentMillis - prevMillis >= 7000){
       if(twai_receive(&message_dcdc, pdMS_TO_TICKS(1000)) == ESP_OK){
-            if(message_dcdc.identifier == 0x0CF00401){
+            if(message_dcdc.identifier == 0x18F11401){
               printf("\nID Inverter: %x", message_dcdc.identifier);        
               uint8_t dcdc_current_msb = message_dcdc.data[3];
               uint8_t dcdc_current_lsb = message_dcdc.data[2];
@@ -301,7 +297,7 @@ void read_dcdc_bms_status(void *arg){
                 Serial.println("File not exist yet");
               }
               else{
-                Serial.println("File engine speed already exist");
+                Serial.println("File dcdc bms already exist");
               }
               file.println(current);
               file.println(hv_input);
@@ -310,7 +306,7 @@ void read_dcdc_bms_status(void *arg){
           }
         }
         if(twai_receive(&message_bms_cell1to4, pdMS_TO_TICKS(1000)) == ESP_OK){
-            if(message_bms_cell1to4.identifier == 0x0CF00401){
+            if(message_bms_cell1to4.identifier == 0x10F51403){
               printf("\nID Inverter: %x", message_bms_cell1to4.identifier);        
               uint8_t cell_voltage1_msb = message_bms_cell1to4.data[1];
               uint8_t cell_voltage1_lsb = message_bms_cell1to4.data[0];
@@ -345,8 +341,94 @@ void read_dcdc_bms_status(void *arg){
               file.close();
           }
         }
+        if(twai_receive(&message_bms_cell5to6, pdMS_TO_TICKS(1000)) == ESP_OK){
+            if(message_bms_cell5to6.identifier == 0x10F51404){
+              printf("\nID Inverter: %x", message_bms_cell5to6.identifier);        
+              uint8_t cell_voltage5_msb = message_bms_cell5to6.data[1];
+              uint8_t cell_voltage5_lsb = message_bms_cell5to6.data[0];
+              cell_voltage5 = (cell_voltage5_msb << 8) | cell_voltage5_lsb;
+              String cvoltage5 = waktu + "\t" + "5" + "\t" + String(cell_voltage5) + "\t\t" + "cell_voltage5";
+
+              uint8_t cell_voltage6_msb = message_bms_cell5to6.data[3];
+              uint8_t cell_voltage6_lsb = message_bms_cell5to6.data[2];
+              cell_voltage6 = (cell_voltage6_msb << 8) | cell_voltage6_lsb;
+              String cvoltage6 = waktu + "\t" + "6" + "\t" + String(cell_voltage6) + "\t\t" + "cell_voltage6";
+
+              File file = SD.open(dcdc_bms_state_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File dcdc bms already exist");
+              }
+              file.println(cvoltage5);
+              file.println(cvoltage6);
+              file.close();
+          }
+        }
       prevMillis = currentMillis;
       printf("\nWaktu kemakan buat bms: %d", millis());
+    }
+  }
+}
+
+void battTempChargeStatus(void *arg){
+  while(1){
+    uint16_t batt_charge_voltage;
+    uint16_t batt_charge_current;
+    int batt_temp1;
+    int batt_temp2;  
+    long int currentMillis = millis();
+    if(currentMillis - prevMillis >= 7000){
+      if(twai_receive(&message_batt_charger, pdMS_TO_TICKS(1000)) == ESP_OK){
+            if(message_batt_charger.identifier == 0x00FD15){
+              printf("\nID Inverter: %x", message_batt_charger.identifier);        
+              uint8_t batt_charge_voltage_msb = message_batt_charger.data[3];
+              uint8_t batt_charge_voltage_lsb = message_batt_charger.data[2];
+              batt_charge_voltage = (batt_charge_voltage_msb << 8) | batt_charge_voltage_lsb;
+              String batt_voltage = waktu + "\t" + String(batt_charge_voltage) + "\t\t" + "batt_charge_voltage";
+
+              uint8_t batt_charge_current_msb = message_batt_charger.data[5];
+              uint8_t batt_charge_current_lsb = message_batt_charger.data[4];
+              batt_charge_current = (batt_charge_current_msb << 8) | batt_charge_current_lsb;
+              String batt_current = waktu + "\t" + String(batt_charge_current) + "\t\t" + "batt_charge_current";
+
+              File file = SD.open(batt_temp_charger_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File batt temp charge already exist");
+              }
+              file.println(batt_voltage);
+              file.println(batt_current);
+              file.close();
+          }
+        }
+
+        if(twai_receive(&message_batt_temp, pdMS_TO_TICKS(1000)) == ESP_OK){
+            if(message_batt_temp.identifier == 0x00FE50){
+              printf("\nID Inverter: %x", message_batt_temp.identifier);        
+              batt_temp1 = message_batt_temp.data[0];
+              String batt_temperature1 = waktu + "\t" + String(batt_temp1) + "\t\t" + "batt_temp1";
+
+              batt_temp2 = message_batt_temp.data[1];
+              String batt_temperature2 = waktu + "\t" + String(batt_temp2) + "\t\t" + "batt_temp2";
+              
+              File file = SD.open(batt_temp_charger_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File batt temp charge already exist");
+              }
+              file.println(batt_temperature1);
+              file.println(batt_temperature2);
+              file.close();
+          }
+        }
+      prevMillis = currentMillis;
+      printf("\nWaktu kemakan buat battery: %d", millis());
     }
   }
 }
@@ -394,9 +476,11 @@ void setup(){
 
   String dcdc_bms_state_now = "/" + epoch_now + "_dcdcBMSState.txt";
   String inverter_pdu_state_now = "/" + epoch_now + "_inverterPDUState.txt";
+  String batt_temp_state_now = "/" + epoch_now + "_battTempChargeState.txt";
 
   dcdc_bms_state_now_cstr = dcdc_bms_state_now.c_str();
   inverter_pdu_state_now_cstr = inverter_pdu_state_now.c_str();
+  batt_temp_charger_now_cstr = batt_temp_state_now.c_str();
 
   printf("\n");
   printf(dcdc_bms_state_now_cstr);
@@ -421,8 +505,20 @@ void setup(){
   }
   file.close();
 
+  file = SD.open(batt_temp_charger_now_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File batt temp and charger state for today does not exist yet");
+    writeFile(SD, batt_temp_charger_now_cstr, "test\r\n");
+  }
+  else{
+    Serial.println("File batt temp and charger state already exist");
+  }
+  file.close();
+
+
   xTaskCreatePinnedToCore(read_inverter_status, "inverterStatus", 3000, NULL, 2, &inverterStatusHandle, 0);
   xTaskCreatePinnedToCore(read_dcdc_bms_status, "bmsStatus", 3000, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(battTempChargeStatus, "battStatus", 2500, NULL, 2, NULL, 0);
   vTaskDelete(NULL);
 
   //inget, priority makin tinggi, resource pool ke tugas itu makin banyak
