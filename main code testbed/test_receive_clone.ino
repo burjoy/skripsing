@@ -31,8 +31,12 @@ twai_message_t message_pdu_dcdc_input_output_voltage;
 twai_message_t message_pdu_hv_precharge_ecu;
 twai_message_t message_pdu_lv_voltage;
 twai_message_t message_dcdc;
+twai_message_t message_bms_hv_lv;
+twai_message_t message_bms_hv_lv_state;
+twai_message_t message_bms_cell1to4;
+twai_message_t message_bms_cell5to6; 
 
-const char* dcdc_state_now_cstr;
+const char* dcdc_bms_state_now_cstr;
 const char* inverter_pdu_state_now_cstr;
 
 String waktu;
@@ -100,27 +104,36 @@ void twai_setup_and_install_for_send(){
 
 void read_inverter_status(void *arg){
   while(1){
+    int real_speed;
+    int real_rpm;
+    uint16_t engine_temp;
+    uint16_t inverter_voltage;
+    uint16_t inverter_current;
+    uint16_t pdu_input_voltage;
+    uint16_t pdu_output_voltage;
+    uint16_t pdu_dcdc_current;
+    uint16_t pdu_voltage;
     long int currentMillis = millis();
     if(currentMillis - prevMillis >= 7000){
+      waktu = take_time();
       if(twai_receive(&message_inverter_speed_rpm_temp, pdMS_TO_TICKS(1000)) == ESP_OK){
             if(message_inverter_speed_rpm_temp.identifier == 0x0CF00401){
               printf("\nID Inverter: %x", message_inverter_speed_rpm_temp.identifier);        
               uint8_t speed_msb = message_inverter_speed_rpm_temp.data[2];
               uint8_t speed_lsb = message_inverter_speed_rpm_temp.data[1];
               uint16_t engine_speed = (speed_msb << 8) | speed_lsb;
-              int real_speed = engine_speed * 0.125;
+              real_speed = engine_speed * 0.125;
               String speedy = waktu + "\t" + String(real_speed) + "\t\t" + "engine_speed";
 
               uint8_t rpm_msb = message_inverter_speed_rpm_temp.data[4];
               uint8_t rpm_lsb = message_inverter_speed_rpm_temp.data[3];
               uint16_t engine_rpm = (rpm_msb << 8) | rpm_lsb;
-              int real_rpm = engine_rpm * 0.125;
+              real_rpm = engine_rpm * 0.125;
               String rpms = waktu + "\t" + String(real_rpm) + "\t\t" + "engine_rpm";
 
               uint8_t temp_msb = message_inverter_speed_rpm_temp.data[6];
               uint8_t temp_lsb = message_inverter_speed_rpm_temp.data[5];
-              uint16_t engine_temp = (temp_msb << 8) | temp_lsb;
-              // int real_rpm = engine_rpm * 0.125;
+              engine_temp = (temp_msb << 8) | temp_lsb;
               String temps = waktu + "\t" + String(engine_temp) + "\t\t" + "engine_temp";
               File file = SD.open(inverter_pdu_state_now_cstr, FILE_APPEND);
               if (!file) {
@@ -140,13 +153,13 @@ void read_inverter_status(void *arg){
               printf("\nID Inverter: %x", message_inverter_voltage_current.identifier);        
               uint8_t voltage_msb = message_inverter_voltage_current.data[1];
               uint8_t voltage_lsb = message_inverter_voltage_current.data[0];
-              uint16_t inverter_voltage = (voltage_msb << 8) | voltage_lsb;
+              inverter_voltage = (voltage_msb << 8) | voltage_lsb;
               // int real_speed = engine_speed * 0.125;
               String tegangan = waktu + "\t" + inverter_voltage + "\t\t" + "inverter_voltage";
 
               uint8_t current_msb = message_inverter_voltage_current.data[3];
               uint8_t current_lsb = message_inverter_voltage_current.data[2];
-              uint16_t inverter_current = (current_msb << 8) | current_lsb;
+              inverter_current = (current_msb << 8) | current_lsb;
               // int real_rpm = engine_rpm * 0.125;
               String arus = waktu + "\t" + inverter_current + "\t\t" + "inverter_current";
               File file = SD.open(inverter_pdu_state_now_cstr, FILE_APPEND);
@@ -166,19 +179,19 @@ void read_inverter_status(void *arg){
               printf("\nID Inverter: %x", message_pdu_dcdc_input_output_voltage.identifier);        
               uint8_t input_voltage_msb = message_pdu_dcdc_input_output_voltage.data[2];
               uint8_t input_voltage_lsb = message_pdu_dcdc_input_output_voltage.data[1];
-              uint16_t pdu_input_voltage = (input_voltage_msb << 8) | input_voltage_lsb;
+              pdu_input_voltage = (input_voltage_msb << 8) | input_voltage_lsb;
               // int real_speed = engine_speed * 0.125;
               String input_pdu_tegangan = waktu + "\t" + pdu_input_voltage + "\t\t" + "pdu_input_voltage";
 
               uint8_t output_voltage_msb = message_pdu_dcdc_input_output_voltage.data[4];
               uint8_t output_voltage_lsb = message_pdu_dcdc_input_output_voltage.data[3];
-              uint16_t pdu_output_voltage = (output_voltage_msb << 8) | output_voltage_lsb;
+              pdu_output_voltage = (output_voltage_msb << 8) | output_voltage_lsb;
               // int real_speed = engine_speed * 0.125;
               String output_pdu_tegangan = waktu + "\t" + pdu_output_voltage + "\t\t" + "pdu_output_voltage";
 
               uint8_t pdu_dcdc_current_msb = message_pdu_dcdc_input_output_voltage.data[6];
               uint8_t pdu_dcdc_current_lsb = message_pdu_dcdc_input_output_voltage.data[5];
-              uint16_t pdu_dcdc_current = (pdu_dcdc_current_msb << 8) | pdu_dcdc_current_lsb;
+              pdu_dcdc_current = (pdu_dcdc_current_msb << 8) | pdu_dcdc_current_lsb;
               // int real_rpm = engine_rpm * 0.125;
               String pdu_dcdc_arus = waktu + "\t" + pdu_dcdc_current + "\t\t" + "pdu_dcdc_current";
               File file = SD.open(inverter_pdu_state_now_cstr, FILE_APPEND);
@@ -199,19 +212,19 @@ void read_inverter_status(void *arg){
               printf("\nID Inverter: %x", message_pdu_hv_precharge_ecu.identifier);        
               uint8_t input_voltage_msb = message_pdu_hv_precharge_ecu.data[2];
               uint8_t input_voltage_lsb = message_pdu_hv_precharge_ecu.data[1];
-              uint16_t pdu_input_voltage = (input_voltage_msb << 8) | input_voltage_lsb;
+              pdu_input_voltage = (input_voltage_msb << 8) | input_voltage_lsb;
               // int real_speed = engine_speed * 0.125;
               String input_pdu_tegangan = waktu + "\t" + pdu_input_voltage + "\t\t" + "pdu_input_voltage";
 
               uint8_t output_voltage_msb = message_pdu_hv_precharge_ecu.data[4];
               uint8_t output_voltage_lsb = message_pdu_hv_precharge_ecu.data[3];
-              uint16_t pdu_output_voltage = (output_voltage_msb << 8) | output_voltage_lsb;
+              pdu_output_voltage = (output_voltage_msb << 8) | output_voltage_lsb;
               // int real_speed = engine_speed * 0.125;
               String output_pdu_tegangan = waktu + "\t" + pdu_output_voltage + "\t\t" + "pdu_output_voltage";
 
               uint8_t pdu_dcdc_current_msb = message_pdu_hv_precharge_ecu.data[6];
               uint8_t pdu_dcdc_current_lsb = message_pdu_hv_precharge_ecu.data[5];
-              uint16_t pdu_dcdc_current = (pdu_dcdc_current_msb << 8) | pdu_dcdc_current_lsb;
+              pdu_dcdc_current = (pdu_dcdc_current_msb << 8) | pdu_dcdc_current_lsb;
               // int real_rpm = engine_rpm * 0.125;
               String pdu_dcdc_arus = waktu + "\t" + pdu_dcdc_current + "\t\t" + "pdu_dcdc_current";
               File file = SD.open(inverter_pdu_state_now_cstr, FILE_APPEND);
@@ -232,7 +245,7 @@ void read_inverter_status(void *arg){
               printf("\nID Inverter: %x", message_pdu_lv_voltage.identifier);        
               uint8_t pdu_voltage_msb = message_pdu_lv_voltage.data[2];
               uint8_t pdu_voltage_lsb = message_pdu_lv_voltage.data[1];
-              uint16_t pdu_voltage = (pdu_voltage_msb << 8) | pdu_voltage_lsb;
+              pdu_voltage = (pdu_voltage_msb << 8) | pdu_voltage_lsb;
               // int real_speed = engine_speed * 0.125;
               String pdu_tegangan = waktu + "\t" + pdu_voltage + "\t\t" + "pdu_voltage";
 
@@ -253,9 +266,96 @@ void read_inverter_status(void *arg){
   }
 }
 
+void read_dcdc_bms_status(void *arg){
+  while(1){
+    uint16_t dcdc_current;
+    uint16_t dcdc_hv_input;
+    uint16_t dcdc_lv_output;
+    uint16_t cell_voltage1;  
+    uint16_t cell_voltage2;
+    uint16_t cell_voltage3;
+    uint16_t cell_voltage4;
+    uint16_t cell_voltage5;
+    uint16_t cell_voltage6;  
+    long int currentMillis = millis();
+    if(currentMillis - prevMillis >= 7000){
+      if(twai_receive(&message_dcdc, pdMS_TO_TICKS(1000)) == ESP_OK){
+            if(message_dcdc.identifier == 0x0CF00401){
+              printf("\nID Inverter: %x", message_dcdc.identifier);        
+              uint8_t dcdc_current_msb = message_dcdc.data[3];
+              uint8_t dcdc_current_lsb = message_dcdc.data[2];
+              dcdc_current = (dcdc_current_msb << 8) | dcdc_current_lsb;
+              String current = waktu + "\t" + String(dcdc_current) + "\t\t" + "dcdc_current";
+
+              uint8_t dcdc_hv_input_msb = message_dcdc.data[5];
+              uint8_t dcdc_hv_input_lsb = message_dcdc.data[4];
+              dcdc_hv_input = (dcdc_hv_input_msb << 8) | dcdc_hv_input_lsb;
+              String hv_input = waktu + "\t" + String(dcdc_hv_input) + "\t\t" + "dcdc_hv_input";
+
+              uint8_t dcdc_lv_output_msb = message_dcdc.data[7];
+              uint8_t dcdc_lv_output_lsb = message_dcdc.data[6];
+              dcdc_lv_output = (dcdc_lv_output_msb << 8) | dcdc_lv_output_lsb;
+              String lv_output = waktu + "\t" + String(dcdc_lv_output) + "\t\t" + "dcdc_lv_output";
+              File file = SD.open(dcdc_bms_state_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File engine speed already exist");
+              }
+              file.println(current);
+              file.println(hv_input);
+              file.println(lv_output);
+              file.close();
+          }
+        }
+        if(twai_receive(&message_bms_cell1to4, pdMS_TO_TICKS(1000)) == ESP_OK){
+            if(message_bms_cell1to4.identifier == 0x0CF00401){
+              printf("\nID Inverter: %x", message_bms_cell1to4.identifier);        
+              uint8_t cell_voltage1_msb = message_bms_cell1to4.data[1];
+              uint8_t cell_voltage1_lsb = message_bms_cell1to4.data[0];
+              cell_voltage1 = (cell_voltage1_msb << 8) | cell_voltage1_lsb;
+              String cvoltage1 = waktu + "\t" + "1" + "\t" + String(cell_voltage1) + "\t\t" + "cell_voltage1";
+
+              uint8_t cell_voltage2_msb = message_bms_cell1to4.data[3];
+              uint8_t cell_voltage2_lsb = message_bms_cell1to4.data[2];
+              cell_voltage2 = (cell_voltage2_msb << 8) | cell_voltage2_lsb;
+              String cvoltage2 = waktu + "\t" + "2" + "\t" + String(cell_voltage2) + "\t\t" + "cell_voltage2";
+
+              uint8_t cell_voltage3_msb = message_bms_cell1to4.data[5];
+              uint8_t cell_voltage3_lsb = message_bms_cell1to4.data[4];
+              cell_voltage3 = (cell_voltage3_msb << 8) | cell_voltage3_lsb;
+              String cvoltage3 = waktu + "\t" + "3" + "\t" + String(cell_voltage3) + "\t\t" + "cell_voltage3";
+
+              uint8_t cell_voltage4_msb = message_bms_cell1to4.data[7];
+              uint8_t cell_voltage4_lsb = message_bms_cell1to4.data[6];
+              cell_voltage4 = (cell_voltage4_msb << 8) | cell_voltage4_lsb;
+              String cvoltage4 = waktu + "\t" + "4" + "\t" + String(cell_voltage4) + "\t\t" + "cell_voltage4";
+              File file = SD.open(dcdc_bms_state_now_cstr, FILE_APPEND);
+              if (!file) {
+                Serial.println("File not exist yet");
+              }
+              else{
+                Serial.println("File dcdc bms already exist");
+              }
+              file.println(cvoltage1);
+              file.println(cvoltage2);
+              file.println(cvoltage3);
+              file.println(cvoltage4);
+              file.close();
+          }
+        }
+      prevMillis = currentMillis;
+      printf("\nWaktu kemakan buat bms: %d", millis());
+    }
+  }
+}
+
 void setup(){
   // take_time();
-  rtc.begin();
+  if(!rtc.begin()){
+    Serial.println("RTC Tidak bisa start Sat!");
+  }
   DateTime now = rtc.now();
   int hari = now.day();
   int bulan = now.month();
@@ -292,15 +392,14 @@ void setup(){
 
   // epoch_now = "2455";
 
-  String dcdc_state_now = "/" + epoch_now + "_dcdcState.txt";
-  String pdu_state_now = "/" + epoch_now + "_pduState.txt";
+  String dcdc_bms_state_now = "/" + epoch_now + "_dcdcBMSState.txt";
   String inverter_pdu_state_now = "/" + epoch_now + "_inverterPDUState.txt";
 
-  dcdc_state_now_cstr = dcdc_state_now.c_str();
+  dcdc_bms_state_now_cstr = dcdc_bms_state_now.c_str();
   inverter_pdu_state_now_cstr = inverter_pdu_state_now.c_str();
 
   printf("\n");
-  printf(dcdc_state_now_cstr);
+  printf(dcdc_bms_state_now_cstr);
 
   File file = SD.open(inverter_pdu_state_now_cstr, FILE_APPEND);
   if(!file){
@@ -312,7 +411,18 @@ void setup(){
   }
   file.close();
 
-  xTaskCreate(read_inverter_status, "inverterStatus", 3000, NULL, 2, &inverterStatusHandle);
+  file = SD.open(dcdc_bms_state_now_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File dcdc and bms state for today does not exist yet");
+    writeFile(SD, dcdc_bms_state_now_cstr, "test\r\n");
+  }
+  else{
+    Serial.println("File dcdc and bms state already exist");
+  }
+  file.close();
+
+  xTaskCreatePinnedToCore(read_inverter_status, "inverterStatus", 3000, NULL, 2, &inverterStatusHandle, 0);
+  xTaskCreatePinnedToCore(read_dcdc_bms_status, "bmsStatus", 3000, NULL, 2, NULL, 1);
   vTaskDelete(NULL);
 
   //inget, priority makin tinggi, resource pool ke tugas itu makin banyak
