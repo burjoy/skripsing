@@ -35,6 +35,9 @@ twai_message_t message_batt_temp;
 const char* dcdc_bms_state_now_cstr;
 const char* inverter_pdu_state_now_cstr;
 const char* batt_temp_charger_now_cstr;
+const char* dtc_p0xxx_cstr;
+const char* dtc_c0xxx_cstr;
+const char* dtc_b0xxx_cstr;
 
 String waktu;
 String epoch_now;
@@ -477,10 +480,16 @@ void setup(){
   String dcdc_bms_state_now = "/" + epoch_now + "_dcdcBMSState.txt";
   String inverter_pdu_state_now = "/" + epoch_now + "_inverterPDUState.txt";
   String batt_temp_state_now = "/" + epoch_now + "_battTempChargeState.txt";
+  String dtc_p0xxx = "/" + epoch_now + "_dtc_p0xxx.txt";
+  String dtc_b0xxx = "/" + epoch_now + "_dtc_b0xxx.txt";
+  String dtc_c0xxx = "/" + epoch_now + "_dtc_c0xxx.txt";
 
   dcdc_bms_state_now_cstr = dcdc_bms_state_now.c_str();
   inverter_pdu_state_now_cstr = inverter_pdu_state_now.c_str();
   batt_temp_charger_now_cstr = batt_temp_state_now.c_str();
+  dtc_p0xxx_cstr = dtc_p0xxx.c_str();
+  dtc_b0xxx_cstr = dtc_b0xxx.c_str();
+  dtc_c0xxx_cstr = dtc_c0xxx.c_str();
 
   printf("\n");
   printf(dcdc_bms_state_now_cstr);
@@ -515,6 +524,35 @@ void setup(){
   }
   file.close();
 
+  file = SD.open(dtc_p0xxx_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File DTC powertrain not exist yet");
+    writeFile(SD, dtc_p0xxx_cstr, "\n");    
+  }
+  else{
+    Serial.println("File DTC powertrain already exist");
+  }
+  file.close();
+
+  file = SD.open(dtc_c0xxx_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File DTC chassis not exist yet");
+    writeFile(SD, dtc_c0xxx_cstr, "\n");    
+  }
+  else{
+    Serial.println("File DTC chassis already exist");
+  }
+  file.close();
+
+  file = SD.open(dtc_b0xxx_cstr, FILE_APPEND);
+  if(!file){
+    Serial.println("File DTC body not exist yet");
+    writeFile(SD, dtc_b0xxx_cstr, "\n");    
+  }
+  else{
+    Serial.println("File DTC body already exist");
+  }
+  file.close();
 
   xTaskCreatePinnedToCore(read_inverter_status, "inverterStatus", 3000, NULL, 2, &inverterStatusHandle, 0);
   xTaskCreatePinnedToCore(read_dcdc_bms_status, "bmsStatus", 3000, NULL, 2, NULL, 1);
