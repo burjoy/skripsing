@@ -451,9 +451,9 @@ void setup(){
 
   int tahun = now.year();
   String year = String(tahun);
-  // DateTime startOfDay = DateTime(tahun, bulan, hari, 0, 0, 0);
-  // int epoch_unix = startOfDay.unixtime();
-  epoch_now = year + "-" + month + "-" + day;
+  DateTime startOfDay = DateTime(tahun, bulan, hari, 0, 0, 0);
+  int epoch_unix = startOfDay.unixtime();
+  epoch_now = String(epoch_unix);
   Serial.begin(115200);
   twai_setup_and_install_for_send();
   if(!SD.begin(5)){
