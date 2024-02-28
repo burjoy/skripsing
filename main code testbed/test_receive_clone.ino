@@ -261,6 +261,7 @@ void read_inverter_status(void *arg){
         }
       prevMillis = currentMillis;
       printf("\nWaktu kemakan buat inverter: %d", millis());
+      Serial.println("This task watermark: " + String(uxTaskGetStackHighWaterMark(NULL)) + " bytes");
     }
   }
 }
@@ -443,11 +444,16 @@ void setup(){
   }
   DateTime now = rtc.now();
   int hari = now.day();
+  String day = String(hari);
+
   int bulan = now.month();
+  String month = String(bulan);
+
   int tahun = now.year();
-  DateTime startOfDay = DateTime(tahun, bulan, hari, 0, 0, 0);
-  int epoch_unix = startOfDay.unixtime();
-  epoch_now = String(epoch_unix);
+  String year = String(tahun);
+  // DateTime startOfDay = DateTime(tahun, bulan, hari, 0, 0, 0);
+  // int epoch_unix = startOfDay.unixtime();
+  epoch_now = year + "-" + month + "-" + day;
   Serial.begin(115200);
   twai_setup_and_install_for_send();
   if(!SD.begin(5)){
@@ -554,7 +560,9 @@ void setup(){
   }
   file.close();
 
-  xTaskCreatePinnedToCore(read_inverter_status, "inverterStatus", 3000, NULL, 2, &inverterStatusHandle, 0);
+  Serial.println("[APP] Free memory: " + String(esp_get_free_heap_size()) + " bytes");
+
+  xTaskCreatePinnedToCore(read_inverter_status, "inverterStatus", 5000, NULL, 2, &inverterStatusHandle, 0);
   xTaskCreatePinnedToCore(read_dcdc_bms_status, "bmsStatus", 3000, NULL, 2, NULL, 1);
   xTaskCreatePinnedToCore(battTempChargeStatus, "battStatus", 2500, NULL, 2, NULL, 0);
   vTaskDelete(NULL);
