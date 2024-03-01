@@ -2,6 +2,7 @@
 #include "SD.h"
 #include "SPI.h"
 #include "BluetoothSerial.h"
+#include "TimeLib.h"
 
 // Check if Bluetooth configs are enabled
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -11,15 +12,26 @@
 // Bluetooth Serial object
 BluetoothSerial SerialBT;
 
+tmElements_t my_time;  // time elements structure
+time_t unix_timestamp; // a timestamp
+
 String message = "";
+String datetime_awal;
+String datetime_akhir;
+String request;
+String waktu_end;
+String waktu_start;
+String permintaan;
+String nama_file;
+
+int first_slice;
+int second_slice;
+int third_slice;
+int fourth_slice;
 
 char incomingChar;
 int stop = 0;
 bool deviceConnected = false;
-
-void sendTerhubung() {
-  SerialBT.print("Terhubung\n");
-}
 
 void readFile(fs::FS &fs, const char *path) {
   Serial.printf("Reading file: %s\n", path);
@@ -52,6 +64,7 @@ void readBluetooth(void *arg) {
         message = "";
       }
     }
+    SerialBT.print(message);
     if (message == "baca inverter") {
       readFile(SD, "/inverter_status.txt");
       printf("\nPanjang message: %d", message.length());
@@ -68,26 +81,111 @@ void readBluetooth(void *arg) {
   }
 }
 
-void onBTConnect(esp_spp_cb_event_t event, esp_spp_cb_param_t *param) {
-  if (event == ESP_SPP_SRV_OPEN_EVT) {
-    Serial.println("Device connected!");
-    if (!deviceConnected) {
-      sendTerhubung();
-      deviceConnected = true;
+void read_request() {
+    if (SerialBT.available()) {
+      incomingChar = SerialBT.read();
+      // if(isSpace(incomingChar)){
+      //   incomingChar = ',';
+      // }
+      if (incomingChar != '\n') {
+        if(isSpace(incomingChar)){
+          incomingChar = ',';
+        }
+        message += String(incomingChar);
+      }
+       else {
+        // Process and send data only if there is a valid input
+        if (!message.isEmpty()) {
+          first_slice = message.indexOf(',');
+          datetime_awal = message.substring(0, first_slice);
+
+          second_slice = message.indexOf(',', first_slice+1);
+          datetime_akhir = message.substring(first_slice + 1, second_slice);
+
+          third_slice = message.indexOf(',', second_slice+1);
+          request = message.substring(second_slice+1, third_slice);
+
+          // printf("\ndatetime akhir: %s", datetime_akhir);
+          // printf("\ndatetime awal: %s", datetime_awal);
+          // printf("\nrequest: %s", request);
+          // printf("\nrequest: %s", request);
+
+          int year_start = datetime_awal.substring(0, 4).toInt();
+          int month_start = datetime_awal.substring(5, 7).toInt();
+          int day_start = datetime_awal.substring(8, 10).toInt();
+          int hour_start = datetime_awal.substring(11, 13).toInt();
+          int minute_start = datetime_awal.substring(14, 16).toInt();
+
+          int year_end = datetime_akhir.substring(0, 4).toInt();
+          int month_end = datetime_akhir.substring(5, 7).toInt();
+          int day_end = datetime_akhir.substring(8, 10).toInt();
+          int hour_end = datetime_akhir.substring(11, 13).toInt();
+          int minute_end = datetime_akhir.substring(14, 16).toInt();
+
+          long int waktu_mulai = change_to_unix(year_start, month_start, day_start);
+          long int waktu_akhir = change_to_unix(year_end, month_end, day_end);
+
+          process_request(waktu_mulai, waktu_akhir, request);
+
+          // SerialBT.print(waktu_mulai);
+          // SerialBT.print(datetime_akhir);
+          // SerialBT.print(request);
+          // SerialBT.print(message);
+
+          // datetime_awal = "";
+          // datetime_akhir = "";
+          // request = "";
+          message = "";
+        }
+      }
     }
-    else if (event == ESP_SPP_CLOSE_EVT) {
-      Serial.println("Device disconnected!");
-      deviceConnected = false;
-    }
-  }
 }
 
-void onBTDisconnect(esp_spp_cb_event_t event, esp_spp_cb_param_t *param) {
-  if (event == ESP_SPP_CLOSE_EVT) {
-    Serial.println("Device disconnected!");
-    deviceConnected = false;
-  }
+long int change_to_unix(int tahun, int bulan, int hari){
+  my_time.Second = 0;
+  my_time.Hour = 24;
+  my_time.Minute = 0;
+  my_time.Day = hari - 1; //gak tau napa harus -1 hari, harusnya bulan
+  my_time.Month = bulan;      //jangan di -1, kgk tau napa, harusnya di -1
+  my_time.Year = tahun - 1970; // years since 1970, so deduct 1970
+
+  unix_timestamp =  makeTime(my_time);
+  // Serial.println(unix_timestamp);
+  long int waktu = int(unix_timestamp);
+  return waktu;
 }
+
+void process_request(long int waktu_mulai, long int waktu_akhir, String request){
+  printf("\n unix awal: %d, \t unix akhir: %d, \t request: %s", waktu_mulai, waktu_akhir, request);
+  waktu_start = "Waktu Mulai: " + String(waktu_mulai);
+  waktu_end = "\nWaktu Akhir: " + String(waktu_akhir);
+  permintaan = "\nRequest: " + request;
+  int kiriman = request.toInt();
+  // kiriman = request.c_str();
+  // String test = "Test ajg\n";
+  if(waktu_mulai > waktu_akhir){
+    SerialBT.print("\nInvalid Request");
+    return;
+  }
+  SerialBT.print(waktu_start);
+  SerialBT.print(waktu_end);
+  SerialBT.print(permintaan);
+
+  switch(kiriman){
+    case 1:
+      SerialBT.print("\nDashboard");
+      break;
+    case 2:
+      SerialBT.print("\nSpeeds");
+      break;
+  }
+
+  waktu_start = "";
+  waktu_end = "";
+  permintaan = "";
+}
+
+//inget, epoch +1 hari itu +86400
 
 void setup() {
   Serial.begin(115200);
@@ -115,15 +213,14 @@ void setup() {
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
 
   SerialBT.begin("ESP32-Slave");
-  SerialBT.register_callback(onBTConnect);
-  // SerialBT.register_callback(onBTDisconnect);
 
   Serial.println("The device started, now you can pair it with Bluetooth!");
 
-  xTaskCreate(readBluetooth, "read_bluetooth", 3000, NULL, 2, NULL);
-  vTaskDelete(NULL);
+  // xTaskCreate(read_request, "read_request", 3000, NULL, 2, NULL);
+  // vTaskDelete(NULL);
 }
 
 void loop() {
   // Your main code here
+  read_request();
 }
