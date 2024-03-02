@@ -142,8 +142,12 @@ void read_request() {
           long int waktu_mulai = change_to_unix(year_start, month_start, day_start);
           long int waktu_akhir = change_to_unix(year_end, month_end, day_end);
 
-          process_request(waktu_mulai, waktu_akhir, request);
-
+          if(data == 1){
+            process_request(waktu_mulai, waktu_akhir, request);
+          }
+          else{
+            SerialBT.print("\nAkses tidak tersedia");
+          }
           // SerialBT.print(waktu_mulai);
           // SerialBT.print(datetime_akhir);
           // SerialBT.print(request);
