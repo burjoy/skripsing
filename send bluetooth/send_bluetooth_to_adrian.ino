@@ -3,6 +3,7 @@
 #include "SPI.h"
 #include "BluetoothSerial.h"
 #include "TimeLib.h"
+#include <ESP32SPISlave.h>
 
 // Check if Bluetooth configs are enabled
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -14,6 +15,7 @@ BluetoothSerial SerialBT;
 
 tmElements_t my_time;  // time elements structure
 time_t unix_timestamp; // a timestamp
+char data;
 
 String message = "";
 String datetime_awal;
@@ -32,6 +34,20 @@ int fourth_slice;
 char incomingChar;
 int stop = 0;
 bool deviceConnected = false;
+TaskHandle_t spiTaskHandle = NULL;
+
+ESP32SPISlave slave;
+
+static constexpr uint32_t BUFFER_SIZE {32};
+uint8_t spi_slave_tx_buf[BUFFER_SIZE];
+uint8_t spi_slave_rx_buf[BUFFER_SIZE];
+
+void spiTask(void *pvParameters) {
+  while (1) {
+    processSPI();
+    vTaskDelay(pdMS_TO_TICKS(10)); // Adjust the delay as needed
+  }
+}
 
 void readFile(fs::FS &fs, const char *path) {
   Serial.printf("Reading file: %s\n", path);
@@ -82,6 +98,7 @@ void readBluetooth(void *arg) {
 }
 
 void read_request() {
+    // processSPI();
     if (SerialBT.available()) {
       incomingChar = SerialBT.read();
       // if(isSpace(incomingChar)){
@@ -163,6 +180,24 @@ void process_request(long int waktu_mulai, long int waktu_akhir, String request)
   int kiriman = request.toInt();
   // kiriman = request.c_str();
   // String test = "Test ajg\n";
+  // char data;
+  // while (slave.available()) {
+  //   // show received data
+  //   Serial.print("Command Received: ");
+  //   Serial.println(spi_slave_rx_buf[0]);
+  //   data = spi_slave_rx_buf[0];
+  //   slave.pop();
+  //   // }
+  //   if(data == 1 )
+  //   {
+  //       Serial.println("Setting LED active HIGH ");
+  //   }
+  //   else if(data == 0 )
+  //   {
+  //       Serial.println("Setting LED active LOW ");
+  //   }
+  // }
+  Serial.println("");
   if(waktu_mulai > waktu_akhir){
     SerialBT.print("\nInvalid Request");
     return;
@@ -178,11 +213,45 @@ void process_request(long int waktu_mulai, long int waktu_akhir, String request)
     case 2:
       SerialBT.print("\nSpeeds");
       break;
+    case 3:
+      SerialBT.print("\nRPM");
+      break;
+    case 4:
+      SerialBT.print("\nTemperature");
+      break;
+    case 5:
+      SerialBT.print("\nBattery temperature");
+      break;
+    case 6:
+      SerialBT.print("\nCell battery");
+      break;
+    // default:
+    //   SerialBT.print("\nInvalid Code Request");
+    //   break;
   }
 
   waktu_start = "";
   waktu_end = "";
   permintaan = "";
+}
+
+void processSPI(){
+  slave.wait(spi_slave_rx_buf, spi_slave_tx_buf, BUFFER_SIZE);
+    // show received data
+  Serial.print("Command Received: ");
+  Serial.println(spi_slave_rx_buf[0]);
+  data = spi_slave_rx_buf[0];
+  slave.pop();
+    // }
+  if(data == 1 )
+  {
+    Serial.println("Setting LED active HIGH ");
+    // digitalWrite(15, HIGH);
+  }
+  else if(data == 0 )
+  {
+    Serial.println("Setting LED active LOW ");
+  }
 }
 
 //inget, epoch +1 hari itu +86400
@@ -212,15 +281,26 @@ void setup() {
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
 
+  slave.setDataMode(SPI_MODE0);
+  slave.begin();
+
+  memset(spi_slave_tx_buf, 0, BUFFER_SIZE);
+  memset(spi_slave_rx_buf, 0, BUFFER_SIZE);
+
+  xTaskCreatePinnedToCore(spiTask, "spiTask", 3000, NULL, 2, &spiTaskHandle, 1);
+
   SerialBT.begin("ESP32-Slave");
 
   Serial.println("The device started, now you can pair it with Bluetooth!");
 
-  // xTaskCreate(read_request, "read_request", 3000, NULL, 2, NULL);
+  // xTaskCreatePinnedToCore(read_request, "read_request", 3000, NULL, 2, NULL, 0);
+  // xTaskCreatePinnedToCore(processSPI, "processSPI", 3000, NULL, 2, NULL, 1);
   // vTaskDelete(NULL);
 }
 
 void loop() {
   // Your main code here
+  // processSPI();
   read_request();
+  vTaskDelay(pdMS_TO_TICKS(10)); 
 }
