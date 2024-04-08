@@ -32,7 +32,6 @@ String permintaan;
 String nama_file;
 String hasil_baca_file;
 String lokasi_file;
-const char* tempat_file;
 
 int first_slice;
 int second_slice;
@@ -109,6 +108,22 @@ void twai_setup_and_install_for_send(){
 
 void readFile(fs::FS &fs, long int start_date, long int end_date, String filter) {
   // Serial.printf("Reading file: %s\n", path);
+  // slave.end();
+  const char* tempat_file;
+  digitalWrite(32, HIGH);
+  digitalWrite(26, HIGH);
+  digitalWrite(27, HIGH);
+  digitalWrite(4, HIGH);
+  String test_read;
+  // writeFile(SD, "/Test_ajg.txt", "AJGGGG\n");
+  // writeFile(SD, "/Test_kedua.txt", "\n");
+  // File file = fs.open("/Test_ajg.txt", FILE_READ);
+  // test_read = file.readString();
+  // SerialBT.print(test_read);
+
+  // file = fs.open("/Test_kedua.txt");
+  // test_read = file.readString();
+  // SerialBT.print(test_read);
 
   if(filter.indexOf("engine") != -1 || filter.indexOf("inverter") != -1 || filter.indexOf("pdu") != -1){
     nama_file = "_inverterPDUState.txt";
@@ -116,10 +131,15 @@ void readFile(fs::FS &fs, long int start_date, long int end_date, String filter)
   else if(filter.indexOf("dcdc") != -1 || filter.indexOf("cell_voltage") != -1){
     nama_file = "_dcdcBMSState.txt";
   }
+
   for(long int epoch = start_date;epoch <= end_date;epoch+=86400){
-    lokasi_file = String(epoch) + nama_file;
+    lokasi_file = String("/") + String(epoch) + String(nama_file);
+    SerialBT.println(lokasi_file);
     tempat_file = lokasi_file.c_str();
     File file = fs.open(tempat_file, FILE_READ);
+    // File file = fs.open("/1712361600_inverterPDUState.txt", FILE_READ);
+    Serial.println("bool Hasil baca file");
+    Serial.print(file);
     if (!file) {
       Serial.println("Failed to open file for reading");
       String gagal = "\ngagal gan, file gk ada";
@@ -130,17 +150,43 @@ void readFile(fs::FS &fs, long int start_date, long int end_date, String filter)
     }
 
     Serial.print("Read from file: ");
-    while (file.available()) {
-      // SerialBT.print(file.read());
-      // SerialBT.println();
-      hasil_baca_file = file.readString();
-      if(hasil_baca_file.indexOf(filter) != -1){
-        SerialBT.print(hasil_baca_file);
+    if(file){
+      while(file.available()) {
+        // file.read();
+        hasil_baca_file = file.readStringUntil('\n');
+        delay(300);
+        Serial.println(hasil_baca_file);
+        // SerialBT.println(hasil_baca_file);
+        // SerialBT.println();
+        // hasil_baca_file = file.readString();
+        if(hasil_baca_file.indexOf(filter) != -1){
+          SerialBT.println(hasil_baca_file);
+          hasil_baca_file = "";
+          SerialBT.flush();
+          delay(50);          
+        }
+        else{
+          Serial.println("Gk cocok ini string, ey");
+          // SerialBT.println("Gk cocok bang, udah bang");
+          delay(10);
+        }
+        // hasil_baca_file = "";
+        // SerialBT.flush();
+        // delay(500);
+        // break;
       }
-      delay(10);
     }
-    file.close();
+    // lokasi_file = "";
+    // tempat_file = lokasi_file.c_str();
+    // tempat_file = '';
+    // file.close();
+    delay(1000);
   }
+  // slave.begin();
+  digitalWrite(32, LOW);
+  digitalWrite(26, LOW);
+  digitalWrite(27, LOW);
+  digitalWrite(4, LOW);
 }
 
 // void readBluetooth(void *arg) {
@@ -374,6 +420,10 @@ void processSPI(){
       SerialBT.begin("ESP32-Slave");
       nyalain_bluetooth = 1;
       matiin_bluetooth = 0;
+      // digitalWrite(32, HIGH);
+      // digitalWrite(26, HIGH);
+      // digitalWrite(27, HIGH);
+      // digitalWrite(4, HIGH);
     }
     // digitalWrite(15, HIGH);
   }
