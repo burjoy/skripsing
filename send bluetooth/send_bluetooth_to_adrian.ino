@@ -41,6 +41,9 @@ long int prevMillis = 0;
 int nyalain_bluetooth = 0;
 int matiin_bluetooth = 0;
 
+int log_enable = 0;
+int dtc_enable = 0;
+
 char incomingChar;
 int stop = 0;
 bool deviceConnected = false;
@@ -48,7 +51,7 @@ TaskHandle_t spiTaskHandle = NULL;
 const char* data_vcu_now_cstr;
 
 ESP32SPISlave slave;
-ESP32Time rtc(3600);
+// ESP32Time rtc(3600);
 
 twai_message_t vcu_message;
 twai_message_t send_to_vcu;
@@ -56,6 +59,8 @@ twai_message_t send_to_vcu;
 static constexpr uint32_t BUFFER_SIZE {32};
 uint8_t spi_slave_tx_buf[BUFFER_SIZE];
 uint8_t spi_slave_rx_buf[BUFFER_SIZE];
+
+ESP32Time rtc(0);
 
 void writeFile(fs::FS &fs, const char * path, const char * message) {
   Serial.printf("Writing file: %s\n", path);
@@ -134,7 +139,7 @@ void readFile(fs::FS &fs, long int start_date, long int end_date, String filter)
 
   for(long int epoch = start_date;epoch <= end_date;epoch+=86400){
     lokasi_file = String("/") + String(epoch) + String(nama_file);
-    SerialBT.println(lokasi_file);
+    // SerialBT.println(lokasi_file);
     tempat_file = lokasi_file.c_str();
     File file = fs.open(tempat_file, FILE_READ);
     // File file = fs.open("/1712361600_inverterPDUState.txt", FILE_READ);
@@ -143,8 +148,8 @@ void readFile(fs::FS &fs, long int start_date, long int end_date, String filter)
     if (!file) {
       Serial.println("Failed to open file for reading");
       String gagal = "\ngagal gan, file gk ada";
-      SerialBT.print(gagal);
-      SerialBT.println();
+      // SerialBT.print(gagal);
+      // SerialBT.println();
       delay(10);
       // return;
     }
@@ -154,16 +159,19 @@ void readFile(fs::FS &fs, long int start_date, long int end_date, String filter)
       while(file.available()) {
         // file.read();
         hasil_baca_file = file.readStringUntil('\n');
-        delay(300);
-        Serial.println(hasil_baca_file);
+        delay(2);
+        // Serial.println(hasil_baca_file);
         // SerialBT.println(hasil_baca_file);
         // SerialBT.println();
         // hasil_baca_file = file.readString();
         if(hasil_baca_file.indexOf(filter) != -1){
-          SerialBT.println(hasil_baca_file);
+          hasil_baca_file.replace(filter, "");
+          hasil_baca_file.replace("\t\t", "");          
+          SerialBT.print(hasil_baca_file);
           hasil_baca_file = "";
           SerialBT.flush();
-          delay(50);          
+          Serial.println("Data Sent!");
+          delay(5);          
         }
         else{
           Serial.println("Gk cocok ini string, ey");
@@ -175,6 +183,9 @@ void readFile(fs::FS &fs, long int start_date, long int end_date, String filter)
         // delay(500);
         // break;
       }
+      // if(!file.available()){
+      //   SerialBT.println("Datanya gk ada bloug");
+      // }
     }
     // lokasi_file = "";
     // tempat_file = lokasi_file.c_str();
@@ -182,6 +193,8 @@ void readFile(fs::FS &fs, long int start_date, long int end_date, String filter)
     // file.close();
     delay(1000);
   }
+  SerialBT.print("\n");
+  SerialBT.print("\n");
   // slave.begin();
   digitalWrite(32, LOW);
   digitalWrite(26, LOW);
@@ -232,39 +245,50 @@ void read_request() {
        else {
         // Process and send data only if there is a valid input
         if (!message.isEmpty()) {
-          first_slice = message.indexOf(',');
-          datetime_awal = message.substring(0, first_slice);
+          if(message.indexOf("LOG,DATA,RETRIEVAL") != -1){
+            log_enable = 1;
+            SerialBT.println("LOG READY");
+            printf("\nNilai enable: %d", log_enable);                    
+          }
+          else if(message.indexOf("DTC,RETRIEVAL") != -1){
+            dtc_enable = 1;
+            SerialBT.println("DTC READY");
+            // send_dtc();
+          }
+          if(log_enable == 1){
+            first_slice = message.indexOf(',');
+            datetime_awal = message.substring(0, first_slice);
 
-          second_slice = message.indexOf(',', first_slice+1);
-          datetime_akhir = message.substring(first_slice + 1, second_slice);
+            second_slice = message.indexOf(',', first_slice+1);
+            datetime_akhir = message.substring(first_slice + 1, second_slice);
 
-          third_slice = message.indexOf(',', second_slice+1);
-          request = message.substring(second_slice+1, third_slice);
+            third_slice = message.indexOf(',', second_slice+1);
+            request = message.substring(second_slice+1, third_slice);
 
-          // printf("\ndatetime akhir: %s", datetime_akhir);
-          // printf("\ndatetime awal: %s", datetime_awal);
-          // printf("\nrequest: %s", request);
-          // printf("\nrequest: %s", request);
+            // printf("\ndatetime akhir: %s", datetime_akhir);
+            // printf("\ndatetime awal: %s", datetime_awal);
+            // printf("\nrequest: %s", request);
+            // printf("\nrequest: %s", request);
 
-          int year_start = datetime_awal.substring(0, 4).toInt();
-          int month_start = datetime_awal.substring(5, 7).toInt();
-          int day_start = datetime_awal.substring(8, 10).toInt();
-          int hour_start = datetime_awal.substring(11, 13).toInt();
-          int minute_start = datetime_awal.substring(14, 16).toInt();
+            int year_start = datetime_awal.substring(0, 4).toInt();
+            int month_start = datetime_awal.substring(5, 7).toInt();
+            int day_start = datetime_awal.substring(8, 10).toInt();
+            int hour_start = datetime_awal.substring(11, 13).toInt();
+            int minute_start = datetime_awal.substring(14, 16).toInt();
 
-          int year_end = datetime_akhir.substring(0, 4).toInt();
-          int month_end = datetime_akhir.substring(5, 7).toInt();
-          int day_end = datetime_akhir.substring(8, 10).toInt();
-          int hour_end = datetime_akhir.substring(11, 13).toInt();
-          int minute_end = datetime_akhir.substring(14, 16).toInt();
+            int year_end = datetime_akhir.substring(0, 4).toInt();
+            int month_end = datetime_akhir.substring(5, 7).toInt();
+            int day_end = datetime_akhir.substring(8, 10).toInt();
+            int hour_end = datetime_akhir.substring(11, 13).toInt();
+            int minute_end = datetime_akhir.substring(14, 16).toInt();
 
-          long int waktu_mulai = change_to_unix(year_start, month_start, day_start);
-          long int waktu_akhir = change_to_unix(year_end, month_end, day_end);
+            long int waktu_mulai = change_to_unix(year_start, month_start, day_start);
+            long int waktu_akhir = change_to_unix(year_end, month_end, day_end);
 
-          //komen ama unkomen 2 process request dibawah ini buat demo & testing
+            //komen ama unkomen 2 process request dibawah ini buat demo & testing
 
-          process_request(waktu_mulai, waktu_akhir, request);
-
+            process_request(waktu_mulai, waktu_akhir, request);
+          }
           // if(data == 1){
           //   process_request(waktu_mulai, waktu_akhir, request);
           // }
@@ -332,9 +356,9 @@ void process_request(long int waktu_mulai, long int waktu_akhir, String request)
     SerialBT.print("\nInvalid Request");
     return;
   }
-  SerialBT.print(waktu_start);
-  SerialBT.print(waktu_end);
-  SerialBT.print(permintaan);
+  // SerialBT.print(waktu_start);
+  // SerialBT.print(waktu_end);
+  // SerialBT.print(permintaan);
 
   switch(kiriman){
     case 1:
@@ -405,6 +429,49 @@ void getFromVCU(void *arg){
 
 // }
 
+String take_time(){
+  int hari_sekarang;
+    int bulan_sekarang;
+    int tahun_sekarang;
+    int hari = rtc.getDay();
+    int bulan = rtc.getMonth();
+    int tahun = rtc.getYear();
+    String pembatas = "-";
+    String date = hari + pembatas + bulan + pembatas + tahun;
+
+    int jam = rtc.getHour(true);
+    int menit = rtc.getMinute();
+    int detik = rtc.getSecond();
+    String pembatas2 = ":";
+    String waktu = jam + pembatas2 + menit + pembatas2 + detik;
+    String pembatas3 = "T";
+    String date_time = date + pembatas3 + waktu;
+
+    // if(hari != hari_lalu || bulan != bulan_lalu || tahun != tahun_lalu){
+    //   hari_sekarang = hari;
+    //   bulan_sekarang = bulan;
+    //   tahun_sekarang = tahun;
+    //   hari_lalu = hari_sekarang;
+    //   bulan_lalu = bulan_sekarang;
+    //   tahun_lalu = tahun_sekarang;
+    //   // DateTime startOfDay = DateTime(tahun, bulan, hari, 0, 0, 0);
+    //   // int epoch_unix = startOfDay.unixtime();
+    //   // String dcdc_bms_state_now = "/" + epoch_now + "_dcdcBMSState.txt";
+    //   // String inverter_pdu_state_now = "/" + epoch_now + "_inverterPDUState.txt";
+    //   // String batt_temp_state_now = "/" + epoch_now + "_battTempChargeState.txt";
+    //   // String dtc_all_now = "/" + epoch_now + "_dtc.txt";
+
+    //   // dcdc_bms_state_now_cstr = dcdc_bms_state_now.c_str();
+    //   // inverter_pdu_state_now_cstr = inverter_pdu_state_now.c_str();
+    //   // batt_temp_charger_now_cstr = batt_temp_state_now.c_str();
+    //   // dtc_all_str = dtc_all_now.c_str();
+    //   esp_restart();
+    //   // esp_reset();      
+    // }
+
+    return date_time;
+}
+
 void processSPI(){
   slave.wait(spi_slave_rx_buf, spi_slave_tx_buf, BUFFER_SIZE);
     // show received data
@@ -416,34 +483,43 @@ void processSPI(){
   if(data == 1 )
   {
     Serial.println("Setting LED active HIGH ");
-    if(nyalain_bluetooth != 1){
-      SerialBT.begin("ESP32-Slave");
-      nyalain_bluetooth = 1;
-      matiin_bluetooth = 0;
-      // digitalWrite(32, HIGH);
-      // digitalWrite(26, HIGH);
-      // digitalWrite(27, HIGH);
-      // digitalWrite(4, HIGH);
-    }
+    // if(nyalain_bluetooth != 1){
+    //   SerialBT.begin("ESP32-Slave");
+    //   nyalain_bluetooth = 1;
+    //   matiin_bluetooth = 0;
+    //   // digitalWrite(32, HIGH);
+    //   // digitalWrite(26, HIGH);
+    //   // digitalWrite(27, HIGH);
+    //   // digitalWrite(4, HIGH);
+    // }
     // digitalWrite(15, HIGH);
   }
   else if(data == 0 )
   {
     Serial.println("Setting LED active LOW ");
-    if(matiin_bluetooth != 1){
-      SerialBT.end();
-      nyalain_bluetooth = 0;
-      matiin_bluetooth = 1;
+    if(!message.isEmpty()){
+      SerialBT.println("Bluetooth gk bisa dipake anjeng, sabar");
     }
     //inget, serialbt.end buat end bluetooth
   }
-  else if(data == 5){
+  else if(data == 200){
     write_data();
   }
 }
 
 void write_data(){
+  // digitalWrite(32, HIGH);
+  // digitalWrite(26, HIGH);
+  // digitalWrite(27, HIGH);
+  // digitalWrite(4, HIGH);
+  String waktu = take_time();
   Serial.println("Checked program");
+  Serial.println(waktu);
+  // delay(500);
+  // digitalWrite(32, LOW);
+  // digitalWrite(26, LOW);
+  // digitalWrite(27, LOW);
+  // digitalWrite(4, LOW);
 }
 
 //inget, epoch +1 hari itu +86400
@@ -472,6 +548,11 @@ void decodeData(unsigned long combined_data) {
 }
 
 void setup() {
+  pinMode(32, OUTPUT);
+  pinMode(27, OUTPUT);
+  pinMode(26, OUTPUT);
+  pinMode(4, OUTPUT);
+
   byte datetimeBytes[7];
   slave.setDataMode(SPI_MODE0);
   slave.begin();
@@ -500,17 +581,14 @@ void setup() {
   byte minute = datetimeBytes[5];
   byte second = datetimeBytes[6];
 
+  rtc.setTime(second, minute+2, hour, day, month, year);
+
   Serial.println(year);
   Serial.println(hour);
 
   long int unix_now = change_to_unix(year, int(month), int(day));
   String data_vcu_now = "/" + String(unix_now) + "_vcuNow.txt";
   data_vcu_now_cstr = data_vcu_now.c_str();
-
-  pinMode(32, OUTPUT);
-  pinMode(27, OUTPUT);
-  pinMode(26, OUTPUT);
-  pinMode(4, OUTPUT);
 
   digitalWrite(32, HIGH);
   digitalWrite(26, HIGH);
@@ -542,6 +620,9 @@ void setup() {
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
   Serial.printf("SD Card Size: %lluMB\n", cardSize);
 
+  Serial.println("File data vcu: ");
+  Serial.print(data_vcu_now_cstr);
+
   File file = SD.open(data_vcu_now_cstr, FILE_APPEND);
   if(!file){
     Serial.println("File vcu belum ada");
@@ -559,7 +640,7 @@ void setup() {
   // delay(200);  
 
   twai_setup_and_install_for_send();
-  // SerialBT.begin("ESP32-Slave");
+  SerialBT.begin("ESP32-Slave");
 
   xTaskCreatePinnedToCore(spiTask, "spiTask", 3000, NULL, 2, &spiTaskHandle, 1);
   xTaskCreatePinnedToCore(getFromVCU, "get_from_vcu", 3000, NULL, 3, NULL, 1);
@@ -574,6 +655,13 @@ void setup() {
 void loop() {
   // Your main code here
   // processSPI();
-  read_request();
+  if(data == 1){
+    read_request();
+  }
+  // else{
+  //   if(!message.isEmpty()){
+  //     SerialBT.println("Bluetooth gk bisa dipake anjeng, sabar");
+  //   }
+  // }
   vTaskDelay(pdMS_TO_TICKS(10)); 
 }
