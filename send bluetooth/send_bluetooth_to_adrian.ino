@@ -245,12 +245,25 @@ void read_request() {
        else {
         // Process and send data only if there is a valid input
         if (!message.isEmpty()) {
-          if(message.indexOf("LOG,DATA,RETRIEVAL") != -1){
+          printf("\n %s", message);
+          if(message.equals("LOG,DATA,")){
+            SerialBT.println("YES");
+          }
+          else{
+            SerialBT.println("NO");
+          }
+          if(message.equals("LOG,DATA,RETRIEVAL,FINISHED,") && log_enable == 1){
+              log_enable = 0;
+              SerialBT.print("DONE");
+              // SerialBT.disconnect();
+              return;
+            }
+          if(message.equals("LOG,DATA,RETRIEVAL,")){
             log_enable = 1;
             SerialBT.println("LOG READY");
             printf("\nNilai enable: %d", log_enable);                    
           }
-          else if(message.indexOf("DTC,RETRIEVAL") != -1){
+          if(message.equals("DTC,RETRIEVAL,")){
             dtc_enable = 1;
             SerialBT.println("DTC READY");
             // send_dtc();
