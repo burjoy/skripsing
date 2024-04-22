@@ -40,6 +40,9 @@ int fourth_slice;
 long int prevMillis = 0;
 int nyalain_bluetooth = 0;
 int matiin_bluetooth = 0;
+int hari_lalu;
+int bulan_lalu;
+int tahun_lalu;
 
 int log_enable = 0;
 int dtc_enable = 0;
@@ -443,22 +446,25 @@ void getFromVCU(void *arg){
 // }
 
 String take_time(){
-  int hari_sekarang;
+    int hari_sekarang;
     int bulan_sekarang;
     int tahun_sekarang;
     int hari = rtc.getDay();
     int bulan = rtc.getMonth();
     int tahun = rtc.getYear();
-    String pembatas = "-";
-    String date = hari + pembatas + bulan + pembatas + tahun;
+    // String pembatas = "-";
+    // String date = tahun + pembatas + bulan + pembatas + hari;
 
     int jam = rtc.getHour(true);
     int menit = rtc.getMinute();
     int detik = rtc.getSecond();
-    String pembatas2 = ":";
-    String waktu = jam + pembatas2 + menit + pembatas2 + detik;
-    String pembatas3 = "T";
-    String date_time = date + pembatas3 + waktu;
+    // String pembatas2 = ":";
+    // String waktu = jam + pembatas2 + menit + pembatas2 + detik;
+    // String pembatas3 = "T";
+    // String date_time = date + pembatas3 + waktu;
+
+    String waktu_sekalian = rtc.getTime("%FT%T");
+    // Serial.println(waktu_sekalian);
 
     // if(hari != hari_lalu || bulan != bulan_lalu || tahun != tahun_lalu){
     //   hari_sekarang = hari;
@@ -482,7 +488,7 @@ String take_time(){
     //   // esp_reset();      
     // }
 
-    return date_time;
+    return waktu_sekalian;
 }
 
 void processSPI(){
@@ -506,8 +512,10 @@ void processSPI(){
     //   // digitalWrite(4, HIGH);
     // }
     // digitalWrite(15, HIGH);
+    // String waktu_sekalian = rtc.getTime("%FT%T");
+    // Serial.println(waktu_sekalian);
   }
-  else if(data == 0 )
+  if(data == 0 )
   {
     Serial.println("Setting LED active LOW ");
     if(!message.isEmpty()){
@@ -515,8 +523,11 @@ void processSPI(){
     }
     //inget, serialbt.end buat end bluetooth
   }
-  else if(data == 200){
+  if(data == 200){
     write_data();
+  }
+  if(data == 150){
+    Serial.println("Data'e mblaem");
   }
 }
 
@@ -593,6 +604,10 @@ void setup() {
   byte hour = datetimeBytes[4];
   byte minute = datetimeBytes[5];
   byte second = datetimeBytes[6];
+
+  hari_lalu = day;
+  bulan_lalu = month;
+  tahun_lalu = year;
 
   rtc.setTime(second, minute+2, hour, day, month, year);
 
