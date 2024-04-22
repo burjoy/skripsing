@@ -169,7 +169,8 @@ void readFile(fs::FS &fs, long int start_date, long int end_date, String filter)
         // hasil_baca_file = file.readString();
         if(hasil_baca_file.indexOf(filter) != -1){
           hasil_baca_file.replace(filter, "");
-          hasil_baca_file.replace("\t\t", "");          
+          hasil_baca_file.replace("\t\t", "");
+          hasil_baca_file = hasil_baca_file + "\n";          
           SerialBT.print(hasil_baca_file);
           hasil_baca_file = "";
           SerialBT.flush();
@@ -249,12 +250,12 @@ void read_request() {
         // Process and send data only if there is a valid input
         if (!message.isEmpty()) {
           printf("\n %s", message);
-          if(message.equals("LOG,DATA,")){
-            SerialBT.println("YES");
-          }
-          else{
-            SerialBT.println("NO");
-          }
+          // if(message.equals("LOG,DATA,")){
+          //   SerialBT.println("YES");
+          // }
+          // else{
+          //   SerialBT.println("NO");
+          // }
           if(message.equals("LOG,DATA,RETRIEVAL,FINISHED,") && log_enable == 1){
               log_enable = 0;
               SerialBT.print("DONE");
@@ -266,11 +267,11 @@ void read_request() {
             SerialBT.println("LOG READY");
             printf("\nNilai enable: %d", log_enable);                    
           }
-          if(message.equals("DTC,RETRIEVAL,")){
-            dtc_enable = 1;
-            SerialBT.println("DTC READY");
-            // send_dtc();
-          }
+          // if(message.equals("DTC,RETRIEVAL,")){
+          //   dtc_enable = 1;
+          //   SerialBT.println("DTC READY");
+          //   // send_dtc();
+          // }
           if(log_enable == 1){
             first_slice = message.indexOf(',');
             datetime_awal = message.substring(0, first_slice);
