@@ -36,6 +36,7 @@ String permintaan;
 String nama_file;
 String hasil_baca_file;
 String lokasi_file;
+String baca_dtc;
 
 int first_slice;
 int second_slice;
@@ -47,6 +48,7 @@ int matiin_bluetooth = 0;
 int hari_lalu;
 int bulan_lalu;
 int tahun_lalu;
+int boleh_kirim = 0;
 
 int log_enable = 0;
 int dtc_enable = 0;
@@ -156,7 +158,7 @@ void authentication(){
       size_t olen;
       mbedtls_base64_encode(encodedPublicKey, 255, &olen, thisPubKey, 41);
       
-      strcpy(result, (String("-----BEGIN PUBLIC KEY-----\n") + String((char*)encodedPublicKey) + String("\n-----END PUBLIC KEY-----")).c_str());
+      strcpy(result, (String("-----BEGIN PUBLIC KEY-----\n") + String((char*)encodedPublicKey) + String("\n-----END PUBLIC KEY-----\r\n")).c_str());
     }
 
     // Step/case 2: Parse other public key, calculate shared secret, and prompt desktop to send shared secret
@@ -228,7 +230,7 @@ void authentication(){
       }
       Serial.println();
 
-      strcpy(result, "AWAITING RESULT");
+      strcpy(result, "AWAITING RESULT\r\n");
     }
 
     // Step/case 2: Parse other public key, calculate shared secret, and prompt desktop to send shared secret
@@ -279,7 +281,7 @@ void authentication(){
       if (!memcmp(thisSharedSecret, otherSharedSecret, outlen)) {
         Serial.println("Shared secret match");
         allowed = 1;
-        SerialBT.print("ID043102");
+        SerialBT.print("ID043102\r\n");
       } else {
         Serial.println("Shared secret does not match");
       }
@@ -469,97 +471,55 @@ void readFile(fs::FS &fs, long int start_date, long int end_date, String filter)
 // }
 
 void read_self_check(fs::FS &fs){
-  int waktu_now = change_to_unix(rtc.getYear(), rtc.getMonth(), rtc.getDay());
-  const char* tempat_file;
-  // digitalWrite(32, HIGH);
-  // digitalWrite(26, HIGH);
-  // digitalWrite(27, HIGH);
-  // digitalWrite(4, HIGH);
-  String test_read;
-  // writeFile(SD, "/Test_ajg.txt", "AJGGGG\n");
-  // writeFile(SD, "/Test_kedua.txt", "\n");
-  // File file = fs.open("/Test_ajg.txt", FILE_READ);
-  // test_read = file.readString();
-  // SerialBT.print(test_read);
-
-  // file = fs.open("/Test_kedua.txt");
-  // test_read = file.readString();
-  // SerialBT.print(test_read);
-
-  // if(filter.indexOf("engine") != -1 || filter.indexOf("inverter") != -1 || filter.indexOf("pdu") != -1){
-  //   nama_file = "_inverterPDUState.txt";
-  // }
-  // else if(filter.indexOf("dcdc") != -1 || filter.indexOf("cell_voltage") != -1){
-  //   nama_file = "_dcdcBMSState.txt";
-  // }
-  String nama_file = "dtc_all_now.txt";
-  String filter = "";
-  // String lokasi_file;
-  for(long int epoch = waktu_now;epoch <= waktu_now;epoch+=86400){
-    lokasi_file = String("/") + String(epoch) + String(nama_file);
-    // SerialBT.println(lokasi_file);
-    tempat_file = lokasi_file.c_str();
-    File file = fs.open(tempat_file, FILE_READ);
-    // File file = fs.open("/1712361600_inverterPDUState.txt", FILE_READ);
-    Serial.println("bool Hasil baca file");
-    Serial.print(file);
-    if (!file) {
-      Serial.println("Failed to open file for reading");
-      String gagal = "\ngagal gan, file gk ada";
-      // SerialBT.print(gagal);
-      // SerialBT.println();
-      delay(10);
-      // return;
+  SerialBT.println("SENDDS");
+  digitalWrite(32, HIGH);
+  digitalWrite(26, HIGH);
+  digitalWrite(27, HIGH);
+  digitalWrite(4, HIGH);
+  File file = fs.open("/dtc_all_now.txt", FILE_READ);
+  if(file){
+    while(file.available()){
+      baca_dtc = file.readStringUntil('\n');
+      baca_dtc += "\n";
+      delay(2);
+      SerialBT.print(baca_dtc);      
     }
-
-    Serial.print("Read from file: ");
-    if(file){
-      while(file.available()) {
-        // file.read();
-        hasil_baca_file = file.readStringUntil('\n');
-        delay(2);
-        // Serial.println(hasil_baca_file);
-        // SerialBT.println(hasil_baca_file);
-        // SerialBT.println();
-        // hasil_baca_file = file.readString();
-        if(hasil_baca_file.indexOf(filter) != -1){
-          hasil_baca_file.replace(filter, "");
-          hasil_baca_file.replace("\t\t", "");
-          hasil_baca_file = hasil_baca_file + "\n";          
-          SerialBT.print(hasil_baca_file);
-          hasil_baca_file = "";
-          SerialBT.flush();
-          Serial.println("Data Sent!");
-          delay(5);          
-        }
-        else{
-          Serial.println("Gk cocok ini string, ey");
-          // SerialBT.println("Gk cocok bang, udah bang");
-          delay(10);
-        }
-        // hasil_baca_file = "";
-        // SerialBT.flush();
-        // delay(500);
-        // break;
-      }
-      // if(!file.available()){
-      //   SerialBT.println("Datanya gk ada bloug");
-      // }
-    }
-    // lokasi_file = "";
-    // tempat_file = lokasi_file.c_str();
-    // tempat_file = '';
-    // file.close();
+    SerialBT.print("DONE\r\n");
+    SerialBT.print("\n");
+    SerialBT.print("\n");
     delay(1000);
   }
-  SerialBT.print("Success!");
-  SerialBT.print("\n");
-  SerialBT.print("\n");
-  // slave.begin();
-  // digitalWrite(32, LOW);
-  // digitalWrite(26, LOW);
-  // digitalWrite(27, LOW);
-  // digitalWrite(4, LOW);
+  else{
+    SerialBT.println("File entah ngapa kgk ada");
+  }
+  digitalWrite(32, LOW);
+  digitalWrite(26, LOW);
+  digitalWrite(27, LOW);
+  digitalWrite(4, LOW);
+}
+
+void send_dtc(fs::FS &fs){
+  digitalWrite(32, HIGH);
+  digitalWrite(26, HIGH);
+  digitalWrite(27, HIGH);
+  digitalWrite(4, HIGH);
+  File file = fs.open("/dtc_all_now.txt", FILE_READ);
+  if(file){
+    while(file.available()){
+      baca_dtc = file.readStringUntil('\n');
+      baca_dtc += "\n";
+      delay(2);
+      SerialBT.print(baca_dtc);      
+    }
+    SerialBT.print("DONE\r\n");
+    SerialBT.print("\n");
+    SerialBT.print("\n");
+    delay(1000);
+  }
+  digitalWrite(32, LOW);
+  digitalWrite(26, LOW);
+  digitalWrite(27, LOW);
+  digitalWrite(4, LOW);
 }
 
 void read_request() {
@@ -591,7 +551,7 @@ void read_request() {
           // }
           if(message.equals("LOG,DATA,RETRIEVAL,FINISHED,") && log_enable == 1){
               log_enable = 0;
-              SerialBT.print("DONE");
+              SerialBT.print("DONE\r\n");
               // SerialBT.disconnect();
               return;
             }
@@ -600,11 +560,22 @@ void read_request() {
             SerialBT.println("LOG READY");
             printf("\nNilai enable: %d", log_enable);                    
             }
-          // if(message.equals("DTC,RETRIEVAL,")){
-          //   dtc_enable = 1;
-          //   SerialBT.println("DTC READY");
-          //   // send_dtc();
-          // }
+          if(message.equals("DTC,RETRIEVAL,")){
+            dtc_enable = 1;
+            SerialBT.println("DTC READY");
+            // if(dtc_enable == 1){
+            //   send_dtc();
+            // }
+          }
+          if(message.equals("DTC,RETRIEVAL,READY,")){
+            if(dtc_enable == 1){
+              SerialBT.println("Begin send DTC");
+              send_dtc(SD);
+            }
+          }
+          if(message.equals("DTC,RETRIEVAL,ACK,")){
+            dtc_enable = 0;
+          }
           if(message.equals("SELF,CHECK,")){
             check_enable = 1;
             // read_self_check();
@@ -753,7 +724,7 @@ void process_request(long int waktu_mulai, long int waktu_akhir, String request)
 void getFromVCU(void *arg){
   while(1){
     long int currentMillis = millis();
-    if(data == 1){
+    if(boleh_kirim == 0){
       if(twai_receive(&vcu_message, pdMS_TO_TICKS(1000)) == ESP_OK){
         // if(currentMillis - prevMillis >= 8000){
         //   if(data == 0){
@@ -862,6 +833,7 @@ void processSPI(){
   if(data == 1 )
   {
     Serial.println("Setting LED active HIGH ");
+    boleh_kirim = 1;
     // if(nyalain_bluetooth != 1){
     //   SerialBT.begin("ESP32-Slave");
     //   nyalain_bluetooth = 1;
@@ -875,12 +847,13 @@ void processSPI(){
     // String waktu_sekalian = rtc.getTime("%FT%T");
     // Serial.println(waktu_sekalian);
   }
-  if(data != 1)
+  if(data == 0)
   {
     Serial.println("Setting LED active LOW ");
     if(!message.isEmpty()){
       SerialBT.println("Bluetooth gk bisa dipake anjeng, sabar");
     }
+    boleh_kirim = 0;
     //inget, serialbt.end buat end bluetooth
   }
   if(data == 200){
@@ -904,9 +877,9 @@ void write_data(){
   Serial.println("Checked program");
   Serial.println(waktu);
   delay(500);
-  if(check_enable == 1){
-    read_self_check(SD);
-  }
+  // if(check_enable == 1){
+  //   read_self_check(SD);
+  // }
   //this delay is only for testing purposes, delete immediately after the code is complete
   delay(3000);
   digitalWrite(32, LOW);
@@ -1073,16 +1046,53 @@ void setup() {
   // vTaskDelete(NULL);
 }
 
+// unsigned long prevMillis = 0;
+unsigned long enableMillis = 0;  // To track when check_enable was set to 1
+
 void loop() {
   // Your main code here
   // processSPI();
-  if(data == 1){
+
+  if (boleh_kirim == 1) {
     read_request();
   }
-  // else{
+
+  if (check_enable == 1) {
+    // Capture the time when check_enable was first set
+    if (enableMillis == 0) {
+      enableMillis = millis();
+    }
+
+    long int currentTime = millis();
+    if (currentTime - enableMillis >= 15000) {
+      // Send the Bluetooth message after 15 seconds
+      SerialBT.println("Self check read, beginning data transfer");
+      read_self_check(SD);
+      
+      // Reset enableMillis to avoid sending multiple messages
+      enableMillis = 0;
+      check_enable = 0;  // Reset check_enable
+    }
+  } else {
+    // Reset enableMillis when check_enable is not 1
+    enableMillis = 0;
+  }
+
+  // Other periodic checks can be handled here
+  if (check_enable == 1 && enableMillis == 0) {
+    long int currentTime = millis();
+    if (currentTime - prevMillis >= 15000) {
+      // read_self_check();
+      SerialBT.println(currentTime);
+      prevMillis = currentTime;
+    }
+  }
+
+  // else {
   //   if(!message.isEmpty()){
   //     SerialBT.println("Bluetooth gk bisa dipake anjeng, sabar");
   //   }
   // }
-  vTaskDelay(pdMS_TO_TICKS(10)); 
+
+  vTaskDelay(pdMS_TO_TICKS(10));
 }
